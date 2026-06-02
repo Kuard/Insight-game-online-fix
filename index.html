@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Insight - Party Game Engine</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        :root {
+            --bg-pure: #060b14; 
+            --bg-card: #0d1424; 
+            --bg-input: #1b2336; 
+            --accent-red: #d91d3a; 
+            --accent-blue: #1b4ade; 
+            --border-subtle: #27344f;
+            --text-primary: #ffffff;
+            --text-secondary: #94a3b8;
+            --title-pink: #ff8fa3; 
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            user-select: none;
+        }
+
+        html, body {
+            background-color: var(--bg-pure);
+            color: var(--text-primary);
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 400px;
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .game-window {
+            background-color: var(--bg-pure);
+            border: 2px solid #1a253c;
+            border-radius: 32px;
+            padding: 30px 20px;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .screen { display: none; flex-direction: column; gap: 20px; height: 100%; }
+        .screen.active { display: flex; }
+
+        .brand-header { text-align: center; margin-bottom: 10px; }
+        .brand-title { color: var(--title-pink); font-size: 42px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; text-shadow: 0 0 15px rgba(255,143,163,0.3); }
+        .brand-subtitle { color: var(--text-secondary); font-size: 15px; font-weight: 500; margin-top: -4px; }
+        
+        .section-label {
+            font-size: 12px; font-weight: 800; color: var(--text-secondary); letter-spacing: 1px;
+            text-transform: uppercase; margin-bottom: 10px;
+        }
+
+        .input-row { display: flex; gap: 12px; width: 100%; }
+        .input-field {
+            background-color: var(--bg-input); border: 1px solid var(--border-subtle); color: var(--text-primary);
+            padding: 16px; border-radius: 12px; font-size: 16px; flex-grow: 1; outline: none; transition: border-color 0.2s;
+        }
+        .input-field:focus { border-color: var(--accent-blue); }
+        
+        .btn-side {
+            background-color: var(--accent-red); color: white; border: none; padding: 0 24px;
+            border-radius: 12px; font-size: 18px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 15px rgba(217,29,58,0.25);
+        }
+
+        .deck-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .deck-pill {
+            background: var(--bg-pure); border: 2px solid var(--border-subtle); border-radius: 16px;
+            padding: 16px 10px; text-align: center; font-size: 15px; font-weight: 700; color: var(--text-primary);
+            cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: all 0.2s ease;
+        }
+        .deck-pill.active { border-color: var(--accent-red); background: rgba(217,29,58,0.05); }
+        .deck-pill.span-half { grid-column: 1 / 2; }
+
+        .btn-main {
+            background-color: var(--accent-red); color: white; border: none; padding: 20px;
+            border-radius: 20px; font-size: 20px; font-weight: 800; width: 100%; cursor: pointer;
+            text-align: center; box-shadow: 0 6px 20px rgba(217,29,58,0.3); transition: transform 0.1s;
+            margin-top: auto;
+        }
+        .btn-main:active { transform: scale(0.98); }
+        .btn-main:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+
+        .fidget-board { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 20px 0; }
+        .fidget-toy { background-color: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; min-height: 130px; }
+        .clicker-btn { width: 80px; height: 80px; background: var(--bg-input); border-radius: 50%; border: 2px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; color: var(--title-pink); cursor: pointer;}
+        .switch-track { width: 50px; height: 90px; background: #02040a; border-radius: 25px; padding: 5px; border: 1px solid var(--border-subtle); display: flex; flex-direction: column; justify-content: flex-start; cursor: pointer;}
+        .switch-track.on { justify-content: flex-end; background: #0c1836; }
+        .switch-handle { width: 38px; height: 38px; background: var(--text-secondary); border-radius: 50%; }
+        .bubble-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+        .bubble { width: 40px; height: 40px; background: var(--bg-input); border-radius: 50%; border: 1px solid var(--border-subtle); cursor: pointer;}
+        .bubble.popped { background: #03060f; transform: scale(0.85); border-color: #000;}
+
+        .prompt-box { background-color: var(--bg-card); border: 1px solid var(--border-subtle); padding: 24px; border-radius: 16px; margin: 10px 0; text-align: center; }
+        .timer-display { font-size: 32px; font-weight: 900; color: var(--accent-red); text-align: center; margin: 10px 0; letter-spacing: 2px; }
+
+        .cards-stack { display: flex; flex-direction: column; gap: 12px; margin: 10px 0; flex-grow: 1; overflow-y: auto; }
+        .reveal-card { background: var(--bg-card); border: 2px solid var(--border-subtle); border-radius: 16px; padding: 20px; text-align: center; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+        .reveal-card.hidden-state { border-style: dashed; color: var(--text-secondary); }
+        .reveal-card.selected { border-color: #10b981; background: rgba(16, 185, 129, 0.1); color: #10b981;}
+        .author-reveal { font-size: 13px; color: #10b981; margin-top: 8px; font-weight: 800; text-transform: uppercase; }
+        
+        .player-pill { background: var(--bg-card); padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border-subtle); display: inline-flex; align-items: center; gap: 8px; margin: 4px; font-size: 14px; font-weight: 600;}
+        .kick-btn { color: var(--accent-red); cursor: pointer; font-size: 18px; font-weight: 900; line-height: 1; padding: 0 4px; }
+        .kick-btn:active { transform: scale(0.9); }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <div class="game-window">
+
+            <!-- SCREEN: MENU -->
+            <div class="screen active" id="scrMenu" style="justify-content: center;">
+                <div class="brand-header">
+                    <div class="brand-title">INSIGHT</div>
+                    <div class="brand-subtitle">Party Game Engine</div>
+                </div>
+                <input type="text" class="input-field" id="menuNameInput" placeholder="Enter Your Nickname" maxlength="12" style="text-align: center;">
+                <button class="btn-main" onclick="createLiveRoom()" style="margin-top: 20px;">Host New Game</button>
+            </div>
+
+            <!-- SCREEN: LOBBY -->
+            <div class="screen" id="scrLobby">
+                <div class="brand-header">
+                    <div class="brand-title">INSIGHT</div>
+                    <div class="brand-subtitle">Party Game Engine</div>
+                </div>
+
+                <div class="input-row">
+                    <input type="text" class="input-field" id="botNameInput" placeholder="Bot Name (Testing)">
+                    <button class="btn-side" onclick="addTestingBot()">Add</button>
+                </div>
+
+                <div>
+                    <div class="section-label">SELECT CATEGORY DECK:</div>
+                    <div class="deck-grid">
+                        <div class="deck-pill" onclick="setCategory('classic', this)">🎭 Classic</div>
+                        <div class="deck-pill" onclick="setCategory('trouble', this)">⚡ Trouble</div>
+                        <div class="deck-pill active" onclick="setCategory('spicy', this)">🌶️ Spicy</div>
+                        <div class="deck-pill" onclick="setCategory('deep', this)">🧠 Deep</div>
+                        <div class="deck-pill" onclick="setCategory('hooot', this)">🔥 Hooot</div>
+                        <div class="deck-pill" onclick="setCategory('trash', this)">🗑️ Trash</div>
+                        <div class="deck-pill span-half" onclick="setCategory('misc', this)">🎲 Mixed Decks</div>
+                    </div>
+                </div>
+                
+                <div id="lobbyPlayerGrid" style="text-align: center; margin-top: 10px;"></div>
+
+                <button class="btn-main" id="hostStartBtn" onclick="broadcastStartRound()">Start Game</button>
+            </div>
+
+            <!-- SCREEN: SUBJECT LOUNGE -->
+            <div class="screen" id="scrSubjectLounge">
+                <div class="brand-header">
+                    <div class="brand-title" style="font-size: 28px;">Target 🎯</div>
+                    <div class="brand-subtitle">Players are writing about you...</div>
+                </div>
+                <div class="timer-display" id="subjectTimerLabel">0:45</div>
+                
+                <div class="fidget-board">
+                    <div class="fidget-toy"><div class="clicker-btn" id="toyClicker" data-clicks="0">0</div></div>
+                    <div class="fidget-toy"><div class="switch-track" id="toyToggle"><div class="switch-handle"></div></div></div>
+                    <div class="fidget-toy" style="grid-column: span 2;"><div class="bubble-grid" id="toyBubbleGrid"></div></div>
+                </div>
+                <div style="text-align: center; font-size: 14px; color: var(--text-secondary); font-weight: bold;" id="submissionTrackLabel">0 cards locked in...</div>
+            </div>
+
+            <!-- SCREEN: WRITER INPUT -->
+            <div class="screen" id="scrWriterInput">
+                <div class="brand-header">
+                    <div class="brand-title" style="font-size: 24px; color: var(--accent-red);" id="writerCategoryLabel">SPICY</div>
+                </div>
+                <div class="prompt-box">
+                    <div style="font-size: 18px; font-weight: 700; line-height: 1.4;" id="activePromptLabel">...</div>
+                </div>
+                <div class="timer-display" id="writerTimerLabel">0:45</div>
+                <input type="text" class="input-field" id="writerInput" placeholder="Type your answer...">
+                <button class="btn-main" id="lockInBtn" onclick="submitWriterCard()">Lock In Card</button>
+            </div>
+
+            <!-- SCREEN: REVEAL STAGE -->
+            <div class="screen" id="scrRevealStage">
+                <div class="brand-header">
+                    <div class="brand-title" style="font-size: 26px;">The Reveal</div>
+                    <div class="brand-subtitle" id="revealInstructions">...</div>
+                </div>
+                <div class="prompt-box" style="padding: 16px;">
+                    <div style="font-size: 16px; font-weight: 700;" id="revealPromptLabel">...</div>
+                </div>
+                <div class="cards-stack" id="cardsWrapper"></div>
+                <button class="btn-main" id="nextRoundBtn" style="display:none;" onclick="broadcastStartRound()">Next Round</button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- AUDIO ENGINE -->
+    <script>
+        const Sound = {
+            ctx: null,
+            init() { if(!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+            play(freq, type, duration) {
+                try { this.init();
+                    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                    osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                    osc.connect(gain); gain.connect(this.ctx.destination);
+                    osc.start(); osc.stop(this.ctx.currentTime + duration);
+                } catch(e) {}
+            }
+        };
+    </script>
+
+    <!-- CORE LOGIC / NETWORKING -->
+    <script>
+        const Prompts = {
+            classic: ["What is hidden in [Subject]'s secret backpack compartment?", "If [Subject] was a car, their check engine light would come on because..."],
+            trouble: ["Who is the least funny person here, according to [Subject]?", "What does [Subject] desperately need to be humbled about?"],
+            spicy: ["What is [Subject]'s biggest red flag on a first date?", "If [Subject] was on Tinder, what would their bio actually say?"],
+            deep: ["What is [Subject] secretly terrified they will never achieve?", "What is a core childhood memory that completely shaped [Subject]?"],
+            hooot: ["What is [Subject]'s go-to move when trying to flirt?", "Who in this room is [Subject] secretly trying to impress the most?"],
+            trash: ["What absolute garbage tier reality TV show does [Subject] watch?", "If [Subject] got arrested, what petty crime did they commit?"]
+        };
+        Prompts.misc = [...Prompts.classic, ...Prompts.spicy, ...Prompts.trash];
+
+        let net = { role: 'host', myName: '' };
+        let room = { players: [], currentSubject: '', currentPrompt: '', currentCategory: 'SPICY', cards: [], timeLimit: 45 };
+        let botCount = 0;
+        let roundTimerInterval;
+        let timeRemaining = 0;
+
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+        }
+
+        function setCategory(cat, el) {
+            room.currentCategory = cat.toUpperCase();
+            document.querySelectorAll('.deck-pill').forEach(p => p.classList.remove('active'));
+            el.classList.add('active');
+            Sound.play(400, 'sine', 0.05);
+        }
+
+        function createLiveRoom() {
+            let n = document.getElementById('menuNameInput').value.trim();
+            net.myName = n ? n : "Host";
+            room.players = [net.myName];
+            updateLobbyUI(); 
+            showScreen('scrLobby');
+        }
+
+        function addTestingBot() {
+            botCount++;
+            let customName = document.getElementById('botNameInput').value.trim();
+            let name = customName ? customName : `Bot_${botCount}`;
+            document.getElementById('botNameInput').value = "";
+            room.players.push(name);
+            updateLobbyUI();
+        }
+
+        // KICK FUNCTIONALITY ADDED
+        function kickPlayer(targetName) {
+            room.players = room.players.filter(p => p !== targetName);
+            updateLobbyUI();
+        }
+
+        function updateLobbyUI() {
+            const grid = document.getElementById('lobbyPlayerGrid'); 
+            grid.innerHTML = "";
+            room.players.forEach(p => {
+                const pill = document.createElement('div'); 
+                pill.className = "player-pill";
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.innerText = p;
+                pill.appendChild(nameSpan);
+
+                // Add kick button for everyone except the host
+                if (p !== net.myName) {
+                    const kickBtn = document.createElement('span');
+                    kickBtn.className = "kick-btn";
+                    kickBtn.innerHTML = "&times;";
+                    kickBtn.onclick = () => kickPlayer(p);
+                    pill.appendChild(kickBtn);
+                }
+
+                grid.appendChild(pill);
+            });
+            
+            document.getElementById('hostStartBtn').innerText = room.players.length < 3 ? "Need 3 Players..." : "Start Game";
+            document.getElementById('hostStartBtn').disabled = room.players.length < 3;
+        }
+
+        function broadcastStartRound() {
+            let pool = Prompts[room.currentCategory.toLowerCase()] || Prompts.spicy;
+            let sub = room.players[Math.floor(Math.random() * room.players.length)];
+            let prompt = pool[Math.floor(Math.random() * pool.length)].replace(/\[Subject\]/g, sub);
+
+            room.currentSubject = sub;
+            room.currentPrompt = prompt;
+            room.cards = []; 
+            
+            startRoundExecution();
+
+            // Bots have a 10-15 second delay
+            room.players.forEach(p => {
+                if (p !== net.myName && p !== room.currentSubject) {
+                    let delay = 10000 + Math.random() * 5000; 
+                    setTimeout(() => {
+                        if (room.currentSubject === sub) {
+                            let ans = ["A completely clean browser history.", "Crying over spilled data.", "Spamming the clicker toy.", "Secret tactical optimization plans."];
+                            processSubmission({ text: ans[Math.floor(Math.random()*ans.length)], name: p });
+                        }
+                    }, delay);
+                }
+            });
+        }
+
+        function processSubmission(data) {
+            if (!room.cards.some(c => c.creator === data.name)) {
+                room.cards.push({ text: data.text, creator: data.name, revealed: false, selected: false });
+                
+                let lbl = document.getElementById('submissionTrackLabel');
+                if (lbl) lbl.innerText = `${room.cards.length} of ${room.players.length - 1} cards locked in...`;
+
+                if (room.cards.length >= room.players.length - 1) {
+                    clearInterval(roundTimerInterval);
+                    room.cards.sort(() => Math.random() - 0.5);
+                    renderRevealStage();
+                }
+            }
+        }
+
+        function startRoundTimer() {
+            clearInterval(roundTimerInterval);
+            timeRemaining = room.timeLimit;
+            
+            function tick() {
+                document.querySelectorAll('.timer-display').forEach(d => {
+                    d.innerText = `0:${timeRemaining.toString().padStart(2, '0')}`;
+                });
+                if (timeRemaining <= 0) {
+                    clearInterval(roundTimerInterval);
+                    if (net.myName !== room.currentSubject && !document.getElementById('lockInBtn').disabled) {
+                        let val = document.getElementById('writerInput').value.trim();
+                        document.getElementById('writerInput').value = val ? val : "*Too slow!*";
+                        submitWriterCard();
+                    }
+                }
+                timeRemaining--;
+            }
+            tick();
+            roundTimerInterval = setInterval(tick, 1000);
+        }
+
+        function startRoundExecution() {
+            document.getElementById('lockInBtn').disabled = false;
+            document.getElementById('lockInBtn').innerText = "Lock In Card";
+            document.getElementById('writerInput').value = "";
+            
+            startRoundTimer();
+
+            if (net.myName === room.currentSubject) {
+                document.getElementById('submissionTrackLabel').innerText = "0 cards locked in...";
+                setupFidgets(); 
+                showScreen('scrSubjectLounge');
+            } else {
+                document.getElementById('writerCategoryLabel').innerText = room.currentCategory;
+                document.getElementById('activePromptLabel').innerText = room.currentPrompt;
+                showScreen('scrWriterInput');
+            }
+        }
+
+        function submitWriterCard() {
+            let txt = document.getElementById('writerInput').value.trim();
+            if (!txt) return;
+            document.getElementById('lockInBtn').disabled = true;
+            document.getElementById('lockInBtn').innerText = "Locked ✓";
+            processSubmission({ text: txt, name: net.myName });
+        }
+
+        function renderRevealStage() {
+            document.getElementById('revealPromptLabel').innerText = room.currentPrompt;
+            document.getElementById('nextRoundBtn').style.display = "block";
+
+            const isTarget = (net.myName === room.currentSubject);
+            document.getElementById('revealInstructions').innerText = isTarget ? "Tap to flip, then choose the best!" : `${room.currentSubject} is judging...`;
+
+            const container = document.getElementById('cardsWrapper'); 
+            container.innerHTML = "";
+            
+            room.cards.forEach((c, idx) => {
+                const el = document.createElement('div'); 
+                el.id = `rcard-${idx}`;
+                container.appendChild(el); 
+                updateCardDOMState(idx);
+
+                el.onclick = () => {
+                    if (!isTarget || room.cards.some(card => card.selected)) return;
+
+                    if (!room.cards[idx].revealed) {
+                        room.cards[idx].revealed = true;
+                        updateCardDOMState(idx);
+                        Sound.play(300, 'triangle', 0.1);
+                    } else {
+                        room.cards.forEach((card, i) => card.selected = (i === idx));
+                        room.cards.forEach((_, i) => updateCardDOMState(i));
+                        Sound.play(280, 'sine', 0.15);
+                    }
+                };
+            });
+            showScreen('scrRevealStage');
+        }
+
+        function updateCardDOMState(idx) {
+            const el = document.getElementById(`rcard-${idx}`); 
+            if (!el) return;
+            const c = room.cards[idx];
+            const isTarget = (net.myName === room.currentSubject);
+
+            if (c.selected) {
+                el.className = "reveal-card selected";
+                el.innerHTML = `<div>${c.text}</div><div class="author-reveal">👑 Written by: ${c.creator}</div>`;
+            } else if (isTarget) {
+                el.className = "reveal-card " + (c.revealed ? "" : "hidden-state");
+                el.innerText = c.revealed ? c.text : `HIDDEN CARD ${idx + 1}`;
+            } else {
+                el.className = "reveal-card"; 
+                el.innerText = c.text;
+            }
+        }
+
+        function setupFidgets() {
+            const clk = document.getElementById('toyClicker'); clk.innerText = "0"; clk.setAttribute('data-clicks', '0');
+            clk.onclick = () => {
+                let count = parseInt(clk.getAttribute('data-clicks')) + 1; clk.setAttribute('data-clicks', count);
+                clk.innerText = count; Sound.play(400 + (count%10)*20, 'triangle', 0.05);
+            };
+            const tgl = document.getElementById('toyToggle'); tgl.classList.remove('on');
+            tgl.onclick = () => { tgl.classList.toggle('on'); Sound.play(150, 'sine', 0.05); };
+            const bGrid = document.getElementById('toyBubbleGrid'); bGrid.innerHTML = "";
+            for(let i=0; i<8; i++) {
+                const b = document.createElement('div'); b.className = "bubble";
+                b.onclick = () => { 
+                    if(!b.classList.contains('popped')) {
+                        b.classList.add('popped'); 
+                        Sound.play(600, 'sine', 0.02); 
+                        setTimeout(()=>b.classList.remove('popped'), 3000); 
+                    }
+                };
+                bGrid.appendChild(b);
+            }
+        }
+    </script>
+</body>
+</html>
