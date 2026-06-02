@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Insight - Card Reveal Engine</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        :root {
+            --bg-pure: #000000;
+            --bg-card: #0b0b0e;
+            --bg-fidget: #121216;
+            --accent-glow: #1c1c24;
+            --text-primary: #ffffff;
+            --text-secondary: #929297;
+            --text-muted: #48484a;
+            --accent-green: #30d158;
+            --accent-red: #ff453a;
+            --accent-purple: #bf5af2;
+            --border-subtle: #1a1a1e;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            user-select: none;
+        }
+
+        html, body {
+            background-color: var(--bg-pure);
+            color: var(--text-primary);
+            width: 100%;
+            min-height: 100vh;
+            overflow-x: hidden;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .app-container {
+            width: 100%;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Floating Nav for active game */
+        .top-nav {
+            display: none; position: fixed; top: 16px; right: 16px; z-index: 100;
+        }
+        .leave-btn {
+            background: rgba(11, 11, 14, 0.8); border: 1px solid var(--border-subtle); color: var(--text-secondary);
+            padding: 8px 14px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.1s;
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        }
+        .leave-btn:active { transform: scale(0.95); background: var(--accent-glow); }
+
+        /* Modal Architecture */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 999; justify-content: center; align-items: center; padding: 20px;
+            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-box {
+            background: var(--bg-card); border: 1px solid var(--border-subtle); padding: 24px;
+            border-radius: 20px; width: 100%; max-width: 340px; text-align: center;
+        }
+
+        .screen {
+            display: none; flex-direction: column; gap: 20px; padding: 40px 24px 48px; width: 100%; max-width: 480px; margin: 0 auto; flex-grow: 1;
+        }
+        .screen.active { display: flex; }
+
+        .header-block { margin-bottom: 10px; }
+        h1 { font-size: 36px; font-weight: 900; letter-spacing: -1.5px; text-transform: uppercase; margin-bottom: 6px; }
+        h2 { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 6px; }
+        p { font-size: 15px; color: var(--text-secondary); line-height: 1.5; }
+        .sub { font-size: 13px; color: var(--text-muted); line-height: 1.4; }
+
+        .btn {
+            background-color: var(--bg-card); border: 1px solid var(--border-subtle); color: var(--text-primary);
+            padding: 16px 24px; border-radius: 14px; font-size: 16px; font-weight: 600; text-align: center;
+            width: 100%; transition: background-color 0.1s, transform 0.1s, opacity 0.1s; cursor: pointer;
+        }
+        .btn:active { background-color: var(--accent-glow); transform: scale(0.98); }
+        .btn-primary { background-color: var(--text-primary); color: var(--bg-pure); border: none; }
+        .btn-primary:disabled { opacity: 0.25; pointer-events: none; }
+        .btn-danger { background-color: var(--accent-red); color: #fff; border: none; }
+
+        .input-field {
+            background-color: var(--bg-card); border: 1px solid var(--border-subtle); color: var(--text-primary);
+            padding: 16px; border-radius: 14px; font-size: 16px; width: 100%; outline: none; text-align: center; transition: border-color 0.2s;
+            appearance: none; -webkit-appearance: none;
+        }
+        .input-field:focus { border-color: #3a3a3c; }
+        
+        select.input-field { text-align: left; background-image: url('data:image/svg+xml;utf8,<svg fill="%23929297" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>'); background-repeat: no-repeat; background-position-x: 95%; background-position-y: 50%; }
+
+        .room-code-display {
+            font-size: 42px; font-weight: 900; letter-spacing: 6px; text-align: center; padding: 20px;
+            background: var(--bg-card); border-radius: 18px; border: 1px solid var(--border-subtle); margin: 15px 0; color: var(--text-primary);
+        }
+
+        .player-grid { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; margin-top: 10px; }
+        .player-pill {
+            background: var(--bg-card); padding: 14px 18px; border-radius: 12px; border: 1px solid var(--border-subtle);
+            display: flex; justify-content: space-between; align-items: center; font-size: 15px; font-weight: 600;
+        }
+        .kick-btn { color: var(--text-muted); font-weight: 700; cursor: pointer; padding: 4px 8px; font-size: 20px; line-height: 1; transition: color 0.1s; }
+        .kick-btn:hover { color: var(--accent-red); }
+
+        /* Fidget Architecture */
+        .fidget-board { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; width: 100%; margin: 10px 0; }
+        .fidget-toy { background-color: var(--bg-fidget); border: 1px solid var(--border-subtle); border-radius: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; min-height: 140px; }
+        .clicker-container { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .clicker-btn { width: 80px; height: 80px; background: var(--bg-card); border-radius: 50%; border: 1px solid var(--border-subtle); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; box-shadow: 0 4px 12px rgba(0,0,0,0.5); transition: transform 0.05s; }
+        .clicker-btn:active { transform: scale(0.92); background: var(--accent-glow); }
+        .clicker-mult { font-size: 10px; color: var(--accent-green); font-weight: 700; text-transform: uppercase; margin-top: -2px; letter-spacing: 0.5px; }
+        .switch-track { width: 54px; height: 90px; background: #050507; border-radius: 27px; padding: 5px; border: 1px solid var(--border-subtle); display: flex; flex-direction: column; justify-content: flex-start; cursor: pointer; }
+        .switch-track.on { justify-content: flex-end; background: #161622; border-color: #2c2c3e; }
+        .switch-handle { width: 42px; height: 42px; background: #24242b; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.6); }
+        .bubble-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+        .bubble { width: 40px; height: 40px; background: radial-gradient(circle at 30% 30%, #22222a 0%, #111115 80%); border-radius: 50%; border: 1px solid #1c1c22; cursor: pointer; }
+        .bubble.popped { background: #060608; border-color: #0d0d11; transform: scale(0.92); box-shadow: inset 0 2px 8px rgba(0,0,0,0.8); }
+
+        .prompt-box { background-color: var(--bg-card); border: 1px solid var(--border-subtle); padding: 22px; border-radius: 16px; margin: 10px 0; text-align: center; position: relative; }
+        .category-badge { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--bg-pure); border: 1px solid var(--border-subtle); padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; }
+        .prompt-text { font-size: 17px; font-weight: 600; line-height: 1.45; }
+        
+        .timer-display { font-size: 20px; font-weight: 800; color: var(--accent-red); text-align: center; margin: 5px 0; display: none; }
+
+        .cards-stack { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+        .reveal-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 20px; text-align: center; min-height: 76px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600; cursor: pointer; transition: border-color 0.15s, background-color 0.15s, opacity 0.2s; }
+        .reveal-card.hidden-state { border-style: dashed; color: var(--text-muted); font-weight: 500; }
+        .reveal-card.writer-unrevealed { border-style: solid; border-color: #2c2c35; color: var(--text-secondary); opacity: 0.55; }
+        .reveal-card.selected { border-color: var(--accent-green); background: #07140b; color: var(--text-primary); cursor: default; }
+        .author-reveal { font-size: 13px; color: var(--accent-green); margin-top: 6px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+
+        .action-block { display: flex; flex-direction: column; gap: 10px; margin-top: auto; width: 100%; }
+        .center-ui { display: flex; flex-direction: column; gap: 14px; }
+    </style>
+</head>
+<body>
+
+    <div class="top-nav" id="globalTopNav">
+        <button class="leave-btn" onclick="openExitModal()">🚪 Leave</button>
+    </div>
+
+    <div class="modal-overlay" id="exitModalOverlay">
+        <div class="modal-box">
+            <h2 id="exitModalTitle" style="font-size: 22px; margin-bottom: 8px;">Leave Game</h2>
+            <p id="exitModalDesc" style="margin-bottom: 24px; font-size: 14px;">Are you sure you want to disconnect?</p>
+            <div id="exitModalActions" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        </div>
+    </div>
+
+    <div class="app-container">
+
+        <div class="screen active" id="scrMenu">
+            <div class="header-block">
+                <h1>Insight</h1>
+                <p>Real-Time Card Reveal Engine</p>
+            </div>
+            <div class="center-ui">
+                <input type="text" class="input-field" id="menuNameInput" placeholder="Enter Your Nickname" maxlength="12">
+            </div>
+            <div class="action-block">
+                <button class="btn btn-primary" onclick="createLiveRoom()">Host New Game</button>
+                <button class="btn" onclick="showScreen('scrJoin')">Join Friend's Room</button>
+            </div>
+        </div>
+
+        <div class="screen" id="scrJoin">
+            <div class="header-block">
+                <h2>Join Room</h2>
+                <p>Enter your friend's 4-character Room ID</p>
+            </div>
+            <div class="center-ui">
+                <input type="text" class="input-field" id="joinRoomInput" placeholder="XXXX" maxlength="4" style="text-transform: uppercase; font-size: 24px; font-weight: 800; letter-spacing: 4px;">
+            </div>
+            <div class="action-block">
+                <button class="btn btn-primary" onclick="joinLiveRoom()">Connect to Lobby</button>
+                <button class="btn" onclick="showScreen('scrMenu')">Back</button>
+            </div>
+        </div>
+
+        <div class="screen" id="scrLobby">
+            <div class="header-block">
+                <h2>Lobby</h2>
+                <p>Share this Room ID with your group:</p>
+                <div class="room-code-display" id="lobbyIdLabel">⌛ ...</div>
+            </div>
+            <div class="center-ui">
+                
+                <div id="hostSettings" style="display:none; padding: 20px; background: var(--bg-fidget); border-radius: 16px; border: 1px solid #2c2c35; margin-bottom: 10px;">
+                    <p style="margin-bottom: 12px; font-weight: 800; text-transform: uppercase; color: var(--text-primary); letter-spacing: 1px; font-size: 12px;">⚙️ Host Settings</p>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <select class="input-field" id="gameCategorySelect" style="padding: 14px; font-size: 15px; background-color: var(--bg-pure);">
+                            <option value="misc">🔀 Category: Complete Chaos</option>
+                            <option value="trouble">🗑️ Category: Trouble & Trash</option>
+                            <option value="spicy">🔥 Category: Spicy & Daring</option>
+                            <option value="deep">🧠 Category: Deep & Vulnerable</option>
+                            <option value="classic">🎲 Category: Classic & Blackout</option>
+                        </select>
+                        <select class="input-field" id="gameTimerSelect" style="padding: 14px; font-size: 15px; background-color: var(--bg-pure);">
+                            <option value="60">⏳ Timer: 60 Seconds</option>
+                            <option value="45">⏳ Timer: 45 Seconds</option>
+                            <option value="30">⏳ Timer: 30 Seconds</option>
+                            <option value="0">⏳ Timer: Infinite (Off)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                    <p style="font-size:14px; font-weight: 600;">Players Connected:</p>
+                    <button class="btn" id="hostAddBotBtn" style="display:none; width:auto; padding: 6px 12px; margin-top:0; font-size:12px; border-radius:8px;" onclick="addTestingBot()">+ Add Bot</button>
+                </div>
+                <p class="sub" id="lobbyPlayerCount">1 / 3 players — need 2 more to start</p>
+                <div class="player-grid" id="lobbyPlayerGrid"></div>
+            </div>
+            <div class="action-block">
+                <button class="btn btn-primary" id="hostStartBtn" style="display:none;" onclick="broadcastStartRound()">Start Match</button>
+                <p class="sub" id="clientWaitNotice" style="text-align:center;">Waiting for Host to start match...</p>
+            </div>
+        </div>
+
+        <div class="screen" id="scrSubjectLounge">
+            <div class="header-block">
+                <h2>You are the Subject! 🎯</h2>
+                <p>Everyone else is writing anonymous cards about you. Fidget to pass the time:</p>
+            </div>
+            <div class="timer-display" id="subjectTimerLabel">0:00</div>
+            <div class="fidget-board">
+                <div class="fidget-toy">
+                    <div class="clicker-container">
+                        <div class="clicker-btn" id="toyClicker" data-clicks="0">0</div>
+                        <div class="clicker-mult" id="toyClickerTier">Tier 1 (x1)</div>
+                    </div>
+                </div>
+                <div class="fidget-toy"><div class="switch-track" id="toyToggle"><div class="switch-handle"></div></div></div>
+                <div class="fidget-toy" style="grid-column: span 2;"><div class="bubble-grid" id="toyBubbleGrid"></div></div>
+            </div>
+            <div class="action-block">
+                <p class="sub" style="text-align:center; font-weight: 500;" id="submissionTrackLabel">Waiting for incoming responses...</p>
+            </div>
+        </div>
+
+        <div class="screen" id="scrWriterInput">
+            <div class="header-block">
+                <h2>Submit Your Card</h2>
+                <p>Keep it direct, anonymous, and ruthless.</p>
+            </div>
+            <div class="center-ui">
+                <div class="prompt-box">
+                    <div class="category-badge" id="writerCategoryBadge">MISC</div>
+                    <div class="prompt-text" id="activePromptLabel">...</div>
+                </div>
+                <div class="timer-display" id="writerTimerLabel">0:00</div>
+                <input type="text" class="input-field" id="writerInput" placeholder="Type your answer card...">
+            </div>
+            <div class="action-block">
+                <button class="btn btn-primary" id="lockInBtn" onclick="submitWriterCard()">Lock In Card</button>
+            </div>
+        </div>
+
+        <div class="screen" id="scrRevealStage">
+            <div class="header-block">
+                <h2>The Reveal Deck</h2>
+                <p id="revealInstructions">Tap a card to flip it open!</p>
+            </div>
+            <div class="prompt-box">
+                <div class="category-badge" id="revealCategoryBadge">MISC</div>
+                <div class="prompt-text" id="revealPromptLabel">...</div>
+            </div>
+            <div class="cards-stack" id="cardsWrapper"></div>
+            <div class="action-block">
+                <button class="btn btn-primary" id="nextRoundBtn" style="display:none;" onclick="broadcastStartRound()">Next Round</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const Sound = {
+            ctx: null,
+            init() { if(!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+            play(freq, type, duration) {
+                try {
+                    this.init();
+                    const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.005, this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch(e) {}
+            }
+        };
+
+        const Vibrate = {
+            buzz(p) { if (navigator.vibrate) { try { navigator.vibrate(p); } catch(e) {} } },
+            tap()    { this.buzz(25); },
+            pop()    { this.buzz([12, 15, 12]); },
+            click()  { this.buzz(10); },
+            boost()  { this.buzz([40, 20, 40]); }
+        };
+    </script>
+
+    <script>
+        const Prompts = {
+            classic: [
+                "What is hidden in the secret compartment of [Subject]'s backpack?",
+                "If [Subject] was a car, their check engine light would come on because...",
+                "What does [Subject] secretly spend most of their money on?",
+                "If [Subject] started a cult, what would be the absolute primary rule?",
+                "What Wikipedia article has [Subject] definitely memorized?",
+                "If [Subject] had a reality TV show, what would the network call it?",
+                "What is [Subject]'s utterly useless superpower?",
+                "If [Subject] was a boss in a video game, what item would they drop when defeated?",
+                "What does [Subject]'s internal monologue sound like?",
+                "If [Subject] faked their death, where would they be caught living?",
+                "What is the title of [Subject]'s unreleased autobiography?",
+                "What minor inconvenience completely ruins [Subject]'s entire day?",
+                "If [Subject] was a brand, what would their slogan be?",
+                "What completely normal thing is [Subject] incredibly bad at?",
+                "What is [Subject] secretly a god at doing?",
+                "What is [Subject]'s Roman Empire?",
+                "If [Subject] got arrested, what would everyone assume the charges were?",
+                "What conspiracy theory does [Subject] 100% believe but won't admit to?",
+                "If [Subject] was an animal, what highly specific animal would they be?",
+                "What does [Subject] do when they think absolutely no one is watching?"
+            ],
+            spicy: [
+                "What is [Subject]'s biggest red flag on a first date?",
+                "What does [Subject] think makes them instantly attractive, but absolutely doesn't?",
+                "Who in this room is [Subject] secretly trying to impress the most?",
+                "What is [Subject]'s absolute worst habit in bed?",
+                "If [Subject] was on Tinder, what would their bio actually say?",
+                "What is [Subject]'s most toxic trait in a relationship?",
+                "What does [Subject] definitely lie about to their partners?",
+                "Which person in this room does [Subject] secretly want to see naked?",
+                "What kink does [Subject] definitely have but refuses to admit?",
+                "What is the most shameful text [Subject] has ever sent at 2 AM?",
+                "If [Subject] got caught doing something scandalous, what would it be?",
+                "Who is [Subject]'s most inappropriate crush?",
+                "What is [Subject]'s go-to move when trying to flirt?",
+                "How long would [Subject] last on an adult film set?",
+                "What would [Subject] do for $10,000 that they swear they never would?",
+                "What phrase does [Subject] probably overuse while flirting?",
+                "If [Subject] had an OnlyFans, what would be their niche?",
+                "What is the most desperate thing [Subject] has done for attention?",
+                "Who is [Subject] most likely to hook up with out of pure boredom?",
+                "What completely vanilla thing does [Subject] think is kinky?"
+            ],
+            trouble: [
+                "Who is the least funny person here, according to [Subject]?",
+                "If [Subject] had to kick one person out of this friend group permanently, who is gone?",
+                "Who in this room is [Subject] secretly incredibly jealous of?",
+                "Who does [Subject] complain about the most behind their back?",
+                "If [Subject] had to punch someone in this room in the face, who takes the hit?",
+                "What does [Subject] desperately need to be humbled about?",
+                "Who is [Subject] most likely to betray for a million dollars?",
+                "What is the most hypocritical thing [Subject] constantly preaches?",
+                "Who in this room does [Subject] think is secretly a loser?",
+                "If [Subject] ruined a wedding, how did they do it?",
+                "What does [Subject] think they are a genius at, but actually suck at?",
+                "Who does [Subject] actively avoid making eye contact with in this room?",
+                "What is the absolute worst advice [Subject] has ever given someone?",
+                "If [Subject] stole something from your house, what did they take?",
+                "Who in this room would [Subject] throw under the bus to save themselves?",
+                "What is the most arrogant thought [Subject] has had today?",
+                "If [Subject] had a podcast, why would it immediately get canceled?",
+                "Who is [Subject] most likely to ghost completely without warning?",
+                "What is [Subject]'s most obnoxious phase they haven't grown out of?",
+                "Who does [Subject] think they are better than?"
+            ],
+            deep: [
+                "What is [Subject] secretly terrified they will never achieve?",
+                "What does [Subject] desperately need to let go of to be happy?",
+                "If [Subject] could redo one year of their life, which would they choose?",
+                "What does [Subject] use as their main defense mechanism?",
+                "What is the biggest lie [Subject] tells themselves every day?",
+                "When is [Subject] actually the most genuinely happy?",
+                "What part of [Subject]'s personality is completely a front?",
+                "What does [Subject] want to be remembered for?",
+                "What is [Subject]'s biggest insecurity that they try to mask with humor?",
+                "Who does [Subject] desperately want approval from?",
+                "What is a core memory that completely shaped [Subject]?",
+                "What does [Subject] secretly feel they don't deserve?",
+                "What is [Subject] most afraid of failing at?",
+                "What trait does [Subject] admire in others because they lack it themselves?",
+                "When does [Subject] feel the most utterly alone?",
+                "What is [Subject]'s true definition of success?",
+                "What apology does [Subject] owe someone, but will never give?",
+                "What part of growing up is [Subject] resisting the hardest?",
+                "Who understands [Subject] better than [Subject] realizes?",
+                "What is the hardest lesson [Subject] still hasn't fully learned?"
+            ]
+        };
+
+        // Populate Misc by combining all
+        Prompts.misc = [...Prompts.classic, ...Prompts.spicy, ...Prompts.trouble, ...Prompts.deep];
+
+        let net = { peer: null, conn: null, connections: [], role: 'client', myName: '' };
+        let room = { id: '', players: [], currentSubject: '', currentPrompt: '', currentCategory: 'MISC', cards: [], timeLimit: 0 };
+        let botCount = 0;
+        
+        // Timer Variables
+        let roundTimerInterval;
+        let timeRemaining = 0;
+
+        function generateClean4LetterCode() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let code = '';
+            for (let i = 0; i < 4; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            window.scrollTo(0, 0);
+        }
+
+        function getCleanName() {
+            let n = document.getElementById('menuNameInput').value.trim();
+            return n ? n : "Player_" + Math.floor(100 + Math.random() * 899);
+        }
+
+        /* --- EXIT SYSTEM --- */
+        function openExitModal() {
+            const overlay = document.getElementById('exitModalOverlay');
+            const title = document.getElementById('exitModalTitle');
+            const desc = document.getElementById('exitModalDesc');
+            const actions = document.getElementById('exitModalActions');
+            Vibrate.tap();
+            if (net.role === 'host') {
+                title.innerText = "Host Controls";
+                desc.innerText = "Do you want to disband the entire room, or just leave?";
+                actions.innerHTML = `
+                    <button class="btn btn-danger" onclick="executeLeave('host-end')">End Room (Drop Everyone)</button>
+                    <button class="btn" onclick="executeLeave('host-leave')">Leave Alone</button>
+                    <button class="btn" style="background: transparent; border: none; color: var(--text-muted);" onclick="closeExitModal()">Cancel</button>
+                `;
+            } else {
+                title.innerText = "Leave Game";
+                desc.innerText = "Are you sure you want to disconnect from the room?";
+                actions.innerHTML = `
+                    <button class="btn btn-danger" onclick="executeLeave('client')">Yes, Leave</button>
+                    <button class="btn" style="background: transparent; border: none; color: var(--text-muted);" onclick="closeExitModal()">Cancel</button>
+                `;
+            }
+            overlay.classList.add('active');
+        }
+        function closeExitModal() { document.getElementById('exitModalOverlay').classList.remove('active'); }
+        function executeLeave(action) {
+            closeExitModal();
+            if (action === 'client') { if (net.conn) net.conn.close(); location.reload(); }
+            else if (action === 'host-end') { broadcastToAll({ type: 'ROOM_DISBANDED' }); setTimeout(() => location.reload(), 400); }
+            else if (action === 'host-leave') { if (net.peer) net.peer.destroy(); location.reload(); }
+        }
+        /* ------------------- */
+
+        function createLiveRoom() {
+            net.myName = getCleanName();
+            net.role = 'host';
+            room.players = [net.myName];
+
+            let customRoomId = generateClean4LetterCode();
+            net.peer = new Peer(customRoomId);
+
+            net.peer.on('open', (id) => {
+                room.id = id;
+                document.getElementById('globalTopNav').style.display = "block";
+                document.getElementById('lobbyIdLabel').innerText = id;
+                document.getElementById('hostStartBtn').style.display = "block";
+                document.getElementById('hostAddBotBtn').style.display = "block";
+                document.getElementById('hostSettings').style.display = "block"; // Settings explicitly shown
+                document.getElementById('clientWaitNotice').style.display = "none";
+                updateLobbyUI();
+                showScreen('scrLobby');
+            });
+
+            net.peer.on('connection', (connection) => {
+                net.connections.push(connection);
+                connection.on('data', (data) => handleIncomingNetworkData(data, connection));
+                connection.on('close', () => handlePeerDisconnect(connection));
+            });
+            net.peer.on('error', (err) => {
+                if (err.type === 'unavailable-id') { createLiveRoom(); } else { alert("Host error: " + err.type); }
+            });
+        }
+
+        function joinLiveRoom() {
+            net.myName = getCleanName();
+            net.role = 'client';
+            let targetRoomId = document.getElementById('joinRoomInput').value.trim().toUpperCase();
+            if (targetRoomId.length !== 4) { alert("Please enter a valid 4-character Room ID"); return; }
+
+            net.peer = new Peer();
+            net.peer.on('open', () => {
+                net.conn = net.peer.connect(targetRoomId);
+                net.conn.on('open', () => {
+                    net.conn.send({ type: 'JOIN', name: net.myName });
+                    document.getElementById('globalTopNav').style.display = "block";
+                    document.getElementById('lobbyIdLabel').innerText = targetRoomId;
+                    showScreen('scrLobby');
+                });
+                net.conn.on('data', (data) => handleIncomingNetworkData(data, null));
+                net.conn.on('close', () => { alert("The Host has disconnected."); location.reload(); });
+            });
+            net.peer.on('error', (err) => alert("Connection error: " + err.type));
+        }
+
+        function addTestingBot() {
+            if (net.role !== 'host') return;
+            botCount++;
+            let botName = `Bot_${botCount}`;
+            room.players.push(botName);
+            Vibrate.click();
+            broadcastToAll({ type: 'SYNC_LOBBY', players: room.players });
+            updateLobbyUI();
+        }
+
+        function kickPlayer(index) {
+            if (net.role !== 'host') return;
+            let targetPlayer = room.players[index];
+            if (!targetPlayer.startsWith("Bot_")) { if (!confirm(`Kick ${targetPlayer} from the lobby?`)) return; }
+            net.connections.forEach(c => {
+                if (c.metadata && c.metadata.name === targetPlayer) { try { c.send({ type: 'KICKED' }); c.close(); } catch(e) {} }
+            });
+            net.connections = net.connections.filter(c => !c.metadata || c.metadata.name !== targetPlayer);
+            room.players.splice(index, 1);
+            Vibrate.click();
+            broadcastToAll({ type: 'SYNC_LOBBY', players: room.players });
+            updateLobbyUI();
+        }
+
+        function handlePeerDisconnect(connection) {
+            if (connection.metadata && connection.metadata.name) {
+                let disconnectedPlayer = connection.metadata.name;
+                room.players = room.players.filter(p => p !== disconnectedPlayer);
+                net.connections = net.connections.filter(c => c !== connection);
+                broadcastToAll({ type: 'SYNC_LOBBY', players: room.players });
+                updateLobbyUI();
+            }
+        }
+
+        function handleIncomingNetworkData(data, connection) {
+            if (data.type === 'JOIN' && net.role === 'host') {
+                if (room.players.includes(data.name)) { data.name = data.name + "_" + Math.floor(Math.random() * 99); }
+                room.players.push(data.name);
+                if (connection) connection.metadata = { name: data.name };
+                broadcastToAll({ type: 'SYNC_LOBBY', players: room.players });
+                updateLobbyUI();
+            }
+            else if (data.type === 'SYNC_LOBBY') { room.players = data.players; updateLobbyUI(); }
+            else if (data.type === 'KICKED') { alert("You have been kicked."); location.reload(); }
+            else if (data.type === 'ROOM_DISBANDED') { alert("Host closed the room."); location.reload(); }
+            else if (data.type === 'START_ROUND') {
+                room.currentSubject = data.subject;
+                room.currentPrompt = data.prompt;
+                room.currentCategory = data.category;
+                room.timeLimit = data.timeLimit;
+                room.cards = [];
+                startLocalRoundExecution();
+            }
+            else if (data.type === 'SUBMIT_CARD' && net.role === 'host') {
+                room.cards.push({ text: data.text, creator: data.name, revealed: false, selected: false });
+                checkAndEvaluateAnswers();
+            }
+            else if (data.type === 'CARD_COUNT_UPDATE') {
+                let label = document.getElementById('submissionTrackLabel');
+                if (label) label.innerText = `${data.count} of ${room.players.length - 1} cards locked in...`;
+            }
+            else if (data.type === 'GO_TO_REVEAL') {
+                clearInterval(roundTimerInterval); // Stop timer on reveal
+                room.cards = data.cards;
+                renderRevealStageUI();
+            }
+            else if (data.type === 'FLIP_CARD') {
+                room.cards[data.index].revealed = true;
+                if (net.role === 'host' && connection !== null) broadcastToAll({ type: 'FLIP_CARD', index: data.index });
+                updateCardVisualState(data.index);
+            }
+            else if (data.type === 'SELECT_CARD') {
+                room.cards.forEach((c, idx) => c.selected = (idx === data.index));
+                if (net.role === 'host' && connection !== null) broadcastToAll({ type: 'SELECT_CARD', index: data.index });
+                updateCardSelectionVisuals();
+            }
+        }
+
+        function broadcastToAll(payload) {
+            if (net.role === 'host') {
+                net.connections.forEach(c => { if(c.open) { try { c.send(payload); } catch(e) {} } });
+                handleIncomingNetworkData(payload, null);
+            }
+        }
+
+        function updateLobbyUI() {
+            const grid = document.getElementById('lobbyPlayerGrid');
+            grid.innerHTML = "";
+            room.players.forEach((p, idx) => {
+                const pill = document.createElement('div');
+                pill.className = "player-pill";
+                if (net.role === 'host' && idx !== 0) {
+                    pill.innerHTML = `<span>${p}</span><span class="kick-btn" onclick="kickPlayer(${idx})">×</span>`;
+                } else {
+                    pill.innerHTML = `<span>${p}</span>`;
+                }
+                grid.appendChild(pill);
+            });
+
+            const count = room.players.length;
+            const needed = Math.max(0, 3 - count);
+            const countLabel = document.getElementById('lobbyPlayerCount');
+            if (countLabel) {
+                countLabel.innerText = needed > 0 ? `${count} / 3 players — need ${needed} more` : `${count} players — ready to roll!`;
+                countLabel.style.color = needed > 0 ? 'var(--text-muted)' : 'var(--accent-green)';
+            }
+            const startBtn = document.getElementById('hostStartBtn');
+            if (startBtn) startBtn.disabled = count < 3;
+        }
+
+        function broadcastStartRound() {
+            if (room.players.length < 3) { alert("Need at least 3 players!"); return; }
+            
+            let eligiblePlayers = room.players.filter(p => p !== room.currentSubject);
+            if (eligiblePlayers.length === 0) eligiblePlayers = [...room.players];
+            let selectedSubject = eligiblePlayers[Math.floor(Math.random() * eligiblePlayers.length)];
+            
+            // Get Host Selections
+            let selectedCategory = document.getElementById('gameCategorySelect') ? document.getElementById('gameCategorySelect').value : 'misc';
+            let selectedTime = document.getElementById('gameTimerSelect') ? parseInt(document.getElementById('gameTimerSelect').value) : 0;
+            
+            let pool = Prompts[selectedCategory] || Prompts.misc;
+            let rawPrompt = pool[Math.floor(Math.random() * pool.length)];
+            let compiledPrompt = rawPrompt.replace(/\[Subject\]/g, selectedSubject);
+
+            broadcastToAll({
+                type: 'START_ROUND',
+                subject: selectedSubject,
+                prompt: compiledPrompt,
+                category: selectedCategory.toUpperCase(),
+                timeLimit: selectedTime
+            });
+
+            if (net.role === 'host') {
+                room.players.forEach(p => {
+                    if (p.startsWith("Bot_") && p !== room.currentSubject) {
+                        const botAnswers = ["Burying a body.", "A fake ID and bad regrets.", "Crying in the club.", "Looking up extremely specific wiki pages.", "Destroying their own life for fun."];
+                        let chosenText = botAnswers[Math.floor(Math.random() * botAnswers.length)];
+                        room.cards.push({ text: chosenText, creator: p, revealed: false, selected: false });
+                    }
+                });
+                checkAndEvaluateAnswers();
+            }
+        }
+
+        function checkAndEvaluateAnswers() {
+            broadcastToAll({ type: 'CARD_COUNT_UPDATE', count: room.cards.length });
+            if (room.cards.length >= room.players.length - 1) {
+                room.cards.sort(() => Math.random() - 0.5);
+                broadcastToAll({ type: 'GO_TO_REVEAL', cards: room.cards });
+            }
+        }
+
+        /* --- TIMER SYSTEM --- */
+        function startRoundTimer() {
+            clearInterval(roundTimerInterval);
+            timeRemaining = room.timeLimit;
+            updateTimerUI();
+
+            if (timeRemaining > 0) {
+                roundTimerInterval = setInterval(() => {
+                    timeRemaining--;
+                    updateTimerUI();
+                    if (timeRemaining <= 0) {
+                        clearInterval(roundTimerInterval);
+                        handleTimeUp();
+                    }
+                }, 1000);
+            }
+        }
+
+        function updateTimerUI() {
+            const displays = document.querySelectorAll('.timer-display');
+            displays.forEach(d => {
+                if (timeRemaining > 0) {
+                    d.innerText = `0:${timeRemaining.toString().padStart(2, '0')}`;
+                    d.style.display = 'block';
+                    // Make it blink red when low
+                    if (timeRemaining <= 10) d.style.color = timeRemaining % 2 === 0 ? "var(--text-primary)" : "var(--accent-red)";
+                    else d.style.color = "var(--text-primary)";
+                } else {
+                    d.style.display = 'none';
+                }
+            });
+        }
+
+        function handleTimeUp() {
+            const isMeSubject = (net.myName === room.currentSubject);
+            if (!isMeSubject) {
+                const lockInBtn = document.getElementById('lockInBtn');
+                if (!lockInBtn.disabled) { // If they haven't submitted yet
+                    let txt = document.getElementById('writerInput').value.trim();
+                    if (!txt) txt = "*Too slow to answer!*";
+                    document.getElementById('writerInput').value = txt;
+                    submitWriterCard();
+                }
+            }
+        }
+        /* -------------------- */
+
+        function startLocalRoundExecution() {
+            const isMeSubject = (net.myName === room.currentSubject);
+
+            const lockInBtn = document.getElementById('lockInBtn');
+            if (lockInBtn) { lockInBtn.disabled = false; lockInBtn.innerText = "Lock In Card"; }
+            document.getElementById('writerInput').value = "";
+            document.getElementById('writerInput').placeholder = "Type your answer card...";
+
+            // Apply category coloring
+            let catColor = "var(--text-muted)";
+            if(room.currentCategory === 'SPICY') catColor = "var(--accent-red)";
+            if(room.currentCategory === 'TROUBLE') catColor = "var(--accent-purple)";
+            if(room.currentCategory === 'DEEP') catColor = "#0a84ff";
+            if(room.currentCategory === 'CLASSIC') catColor = "var(--accent-green)";
+
+            document.getElementById('writerCategoryBadge').innerText = room.currentCategory;
+            document.getElementById('writerCategoryBadge').style.color = catColor;
+            document.getElementById('revealCategoryBadge').innerText = room.currentCategory;
+            document.getElementById('revealCategoryBadge').style.color = catColor;
+
+            // Start Timer
+            startRoundTimer();
+
+            if (isMeSubject) {
+                document.getElementById('submissionTrackLabel').innerText = "Writers are cooking answers...";
+                setupSubjectFidgetFeatures();
+                showScreen('scrSubjectLounge');
+            } else {
+                document.getElementById('activePromptLabel').innerText = room.currentPrompt;
+                showScreen('scrWriterInput');
+            }
+        }
+
+        function submitWriterCard() {
+            if (net.myName === room.currentSubject) return;
+            let txt = document.getElementById('writerInput').value.trim();
+            if (!txt) return;
+
+            const lockInBtn = document.getElementById('lockInBtn');
+            if (lockInBtn) { lockInBtn.disabled = true; lockInBtn.innerText = "Card Locked ✓"; }
+
+            if (net.role === 'host') { handleIncomingNetworkData({ type: 'SUBMIT_CARD', text: txt, name: net.myName }, null); }
+            else { net.conn.send({ type: 'SUBMIT_CARD', text: txt, name: net.myName }); }
+            document.getElementById('writerInput').placeholder = "Waiting for others...";
+        }
+
+        function renderRevealStageUI() {
+            document.getElementById('revealPromptLabel').innerText = room.currentPrompt;
+            document.getElementById('nextRoundBtn').style.display = (net.role === 'host') ? "block" : "none";
+
+            const isMeSubject = (net.myName === room.currentSubject);
+            document.getElementById('revealInstructions').innerText = isMeSubject
+                ? "Tap cards to flip them open, then choose your favorite!"
+                : `${room.currentSubject} is guessing. You can see all cards below!`;
+
+            const wrapper = document.getElementById('cardsWrapper');
+            wrapper.innerHTML = "";
+
+            room.cards.forEach((card, idx) => {
+                const cardEl = document.createElement('div');
+                cardEl.id = `card-${idx}`;
+                wrapper.appendChild(cardEl);
+                updateCardVisualState(idx);
+
+                cardEl.onclick = () => {
+                    if (!isMeSubject) return;
+                    
+                    // PERMANENT SELECTION LOCK: If any card is already selected, do nothing.
+                    if (room.cards.some(c => c.selected)) return;
+
+                    if (!room.cards[idx].revealed) {
+                        room.cards[idx].revealed = true;
+                        Vibrate.tap();
+                        if (net.role === 'host') broadcastToAll({ type: 'FLIP_CARD', index: idx });
+                        else net.conn.send({ type: 'FLIP_CARD', index: idx });
+                    } else {
+                        if (net.role === 'host') broadcastToAll({ type: 'SELECT_CARD', index: idx });
+                        else net.conn.send({ type: 'SELECT_CARD', index: idx });
+                    }
+                };
+            });
+
+            showScreen('scrRevealStage');
+        }
+
+        function updateCardVisualState(idx) {
+            const cardEl = document.getElementById(`card-${idx}`);
+            if (!cardEl) return;
+            const card = room.cards[idx];
+            const isMeSubject = (net.myName === room.currentSubject);
+
+            if (card.selected) {
+                cardEl.className = "reveal-card selected";
+                cardEl.innerHTML = `<div><div>${card.text}</div><div class="author-reveal">👑 Written by: ${card.creator}</div></div>`;
+            } else if (isMeSubject) {
+                if (card.revealed) { cardEl.className = "reveal-card"; cardEl.innerText = card.text; }
+                else { cardEl.className = "reveal-card hidden-state"; cardEl.innerText = `HIDDEN CARD ${idx + 1}`; }
+            } else {
+                if (card.revealed) { cardEl.className = "reveal-card"; cardEl.innerText = card.text; }
+                else { cardEl.className = "reveal-card writer-unrevealed"; cardEl.innerText = card.text; }
+            }
+        }
+
+        function updateCardSelectionVisuals() {
+            room.cards.forEach((_, idx) => updateCardVisualState(idx));
+            Sound.play(220, 'sine', 0.12); Vibrate.buzz([15, 30, 15]);
+        }
+
+        function setupSubjectFidgetFeatures() {
+            const clicker = document.getElementById('toyClicker');
+            const tierLabel = document.getElementById('toyClickerTier');
+            clicker.innerText = "0"; clicker.setAttribute('data-clicks', '0'); tierLabel.innerText = "Tier 1 (x1)";
+            clicker.onclick = () => {
+                let currentClicks = parseInt(clicker.getAttribute('data-clicks') || '0'); currentClicks++;
+                clicker.setAttribute('data-clicks', currentClicks);
+                let gain = 1; let tierText = "Tier 1 (x1)";
+                if (currentClicks > 50) { gain = 3; tierText = "Tier 3 (x3) 🔥"; }
+                else if (currentClicks > 20) { gain = 2; tierText = "Tier 2 (x2) ⚡"; }
+                if (currentClicks === 21 || currentClicks === 51) Vibrate.boost();
+                let currentScore = parseInt(clicker.innerText.split(' ')[0] || '0'); let newScore = currentScore + gain;
+                clicker.innerText = newScore + (gain > 1 ? ` (+${gain})` : ''); tierLabel.innerText = tierText;
+                Sound.play(540 + (gain * 40), 'triangle', 0.05); Vibrate.tap();
+            };
+            const toggle = document.getElementById('toyToggle');
+            toggle.classList.remove('on');
+            toggle.onclick = () => { toggle.classList.toggle('on'); Sound.play(140, 'sine', 0.06); Vibrate.click(); };
+            const bubbleGrid = document.getElementById('toyBubbleGrid');
+            bubbleGrid.innerHTML = "";
+            for (let i = 0; i < 8; i++) {
+                const bub = document.createElement('div'); bub.className = "bubble";
+                bub.onclick = () => {
+                    if (!bub.classList.contains('popped')) {
+                        bub.classList.add('popped'); Sound.play(880, 'sine', 0.02); Vibrate.pop();
+                        setTimeout(() => bub.classList.remove('popped'), 4000);
+                    }
+                };
+                bubbleGrid.appendChild(bub);
+            }
+        }
+    </script>
+</body>
+</html>
