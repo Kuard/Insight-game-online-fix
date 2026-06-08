@@ -256,3 +256,25 @@ html, body {
 .modal-desc { font-size: 14px; color: var(--text-secondary); line-height: 1.4; }
 /* ── Changed to flex-direction: column to stack Leave under Cancel ── */
 .modal-actions { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+
+/* New styles for late joiners and scores - minimal addition */
+.late-badge {
+    background: #f59e0b;
+    color: #000;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 9999px;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+.score-pill {
+    background: var(--bg-card);
+    padding: 12px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px solid var(--border-subtle);
+}
