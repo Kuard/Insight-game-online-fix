@@ -631,4 +631,4 @@ function setupFidgets() {
         };
         bGrid.appendChild(b);
     }
-    }
+}
