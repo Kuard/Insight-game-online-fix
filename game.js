@@ -74,7 +74,17 @@ fetch('questions.json')
 
 // ── STATE ──────────────────────────────────────────────────────────────────────
 let net  = { peer: null, conn: null, connections: [], role: 'client', myName: '' };
-let room = { id:'', players:[], currentSubject:'', currentPrompt:'', currentRawQuestion:'', currentCategory:'spicy', cards:[], timeLimit:45, playedQuestions: [] };
+let room = {
+    id:'', players:[], currentSubject:'', currentPrompt:'', currentRawQuestion:'', currentCategory:'spicy',
+    cards:[], timeLimit:45, playedQuestions:[],
+    // ── NEW STATE ──
+    scores: {},           // { playerName: number }
+    lateJoiners: [],      // names of players who joined mid-game (for badge display)
+    maxRounds: 10,        // 10 | 30 | 45
+    roundCount: 0,        // rounds completed so far
+    roundActive: false,   // true while a round is in progress (writing phase)
+    activeWriters: []     // players who were present at round start and must submit
+};
 let roundTimerInterval = null;
 let timeRemaining = 0;
 let screenTransitionChangeTime = 0; 
@@ -104,6 +114,16 @@ function setCategory(cat, el) {
     if (net.role === 'host') broadcastToAll({ type: 'SYNC_CATEGORY', category: cat });
 }
 
+// ── NEW: Set max rounds (host only) ──────────────────────────────────────────
+function setMaxRounds(n, el) {
+    room.maxRounds = n;
+    document.querySelectorAll('.round-pill').forEach(p => p.classList.remove('active'));
+    el.classList.add('active');
+    Sound.play(400, 'sine', 0.05);
+    Vibrate.click();
+    if (net.role === 'host') broadcastToAll({ type: 'SYNC_MAX_ROUNDS', maxRounds: n });
+}
+
 /* ── LEAVE CONFIRMATION SYSTEM ── */
 function triggerLeaveConfirmation() {
     Sound.play(200, 'sine', 0.08);
@@ -128,7 +148,11 @@ function leaveRoom() {
         try { net.peer.destroy(); } catch(e) {}
     }
     net = { peer: null, conn: null, connections: [], role: 'client', myName: '' };
-    room = { id:'', players:[], currentSubject:'', currentPrompt:'', currentRawQuestion:'', currentCategory:'spicy', cards:[], timeLimit:45, playedQuestions: [] };
+    room = {
+        id:'', players:[], currentSubject:'', currentPrompt:'', currentRawQuestion:'', currentCategory:'spicy',
+        cards:[], timeLimit:45, playedQuestions:[],
+        scores: {}, lateJoiners: [], maxRounds: 10, roundCount: 0, roundActive: false, activeWriters: []
+    };
     
     $('hostOnlyControls').style.display = 'none';
     $('hostStartBtn').style.display = 'none';
@@ -169,13 +193,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// ── TOAST NOTIFICATION ────────────────────────────────────────────────────────
+function showToast(msg) {
+    let existing = document.getElementById('gameToast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'gameToast';
+    toast.className = 'game-toast';
+    toast.innerText = msg;
+    document.querySelector('.app-container').appendChild(toast);
+
+    // Animate in
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => { toast.classList.add('visible'); });
+    });
+
+    setTimeout(() => {
+        toast.classList.remove('visible');
+        setTimeout(() => { if (toast.parentNode) toast.remove(); }, 400);
+    }, 3500);
+}
+
 // ── NETWORKING ─────────────────────────────────────────────────────────────────
 function createLiveRoom() {
     net.myName = getCleanName();
     net.role = 'host';
     room.players = [net.myName];
 
-    // ── CHANGE B: 4-char code only, no INSG- prefix ──
     const shortId = Math.random().toString(36).substring(2,6).toUpperCase();
     net.peer = new Peer(shortId, PEER_CONFIG);
 
@@ -192,7 +237,17 @@ function createLiveRoom() {
     net.peer.on('connection', (connection) => {
         connection.on('data', (data) => handleData(data, connection));
         connection.on('open', () => {
-            connection.send({ type: 'SYNC_LOBBY', players: room.players, category: room.currentCategory, playedQuestions: room.playedQuestions });
+            connection.send({
+                type: 'SYNC_LOBBY',
+                players: room.players,
+                category: room.currentCategory,
+                playedQuestions: room.playedQuestions,
+                // ── NEW: send round/score state to new connections ──
+                maxRounds: room.maxRounds,
+                roundCount: room.roundCount,
+                scores: room.scores,
+                lateJoiners: room.lateJoiners
+            });
         });
     });
 
@@ -225,28 +280,79 @@ function joinLiveRoom() {
 }
 
 function handleData(data, connection) {
-    // ── CHANGE C: duplicate-name guard + tag connection with player name ──
     if (data.type === 'JOIN' && net.role === 'host') {
         if (room.players.includes(data.name)) {
             if (connection) connection.send({ type: 'NAME_TAKEN' });
             return;
         }
         room.players.push(data.name);
+        // ── NEW: init score for this player ──
+        if (!(data.name in room.scores)) room.scores[data.name] = 0;
+
         if (connection) {
             connection._kickName = data.name;
             net.connections.push(connection);
         }
-        broadcastToAll({ type: 'SYNC_LOBBY', players: room.players, category: room.currentCategory, playedQuestions: room.playedQuestions });
-        updateLobbyUI();
+
+        // ── NEW: detect mid-game join ──
+        if (room.roundActive) {
+            // Mark as late joiner
+            if (!room.lateJoiners.includes(data.name)) room.lateJoiners.push(data.name);
+
+            // Send them a catch-up packet so they can observe the current round
+            if (connection) {
+                connection.send({
+                    type: 'CATCH_UP',
+                    subject: room.currentSubject,
+                    prompt: room.currentPrompt,
+                    category: room.currentCategory,
+                    cards: room.cards,           // cards submitted so far (may be partial)
+                    scores: room.scores,
+                    lateJoiners: room.lateJoiners,
+                    maxRounds: room.maxRounds,
+                    roundCount: room.roundCount
+                });
+            }
+
+            // Notify everyone else
+            broadcastToAll({
+                type: 'PLAYER_JOINED_LATE',
+                name: data.name,
+                players: room.players,
+                lateJoiners: room.lateJoiners,
+                scores: room.scores
+            });
+        } else {
+            broadcastToAll({
+                type: 'SYNC_LOBBY',
+                players: room.players,
+                category: room.currentCategory,
+                playedQuestions: room.playedQuestions,
+                maxRounds: room.maxRounds,
+                roundCount: room.roundCount,
+                scores: room.scores,
+                lateJoiners: room.lateJoiners
+            });
+            updateLobbyUI();
+        }
     }
     else if (data.type === 'SYNC_LOBBY') {
         room.players = data.players;
         room.currentCategory = data.category;
         room.playedQuestions = data.playedQuestions || [];
+        // ── NEW: sync round/score state ──
+        if (data.maxRounds !== undefined) room.maxRounds = data.maxRounds;
+        if (data.roundCount !== undefined) room.roundCount = data.roundCount;
+        if (data.scores !== undefined) room.scores = data.scores;
+        if (data.lateJoiners !== undefined) room.lateJoiners = data.lateJoiners;
         updateLobbyUI();
     }
     else if (data.type === 'SYNC_CATEGORY') {
         room.currentCategory = data.category;
+    }
+    // ── NEW: sync max rounds on clients ──
+    else if (data.type === 'SYNC_MAX_ROUNDS') {
+        room.maxRounds = data.maxRounds;
     }
     else if (data.type === 'START_ROUND') {
         room.currentSubject  = data.subject;
@@ -255,17 +361,23 @@ function handleData(data, connection) {
         if (data.rawQuestion) {
             room.playedQuestions.push(data.rawQuestion);
         }
+        // ── NEW: sync round metadata ──
+        if (data.roundCount !== undefined) room.roundCount = data.roundCount;
+        if (data.lateJoiners !== undefined) room.lateJoiners = data.lateJoiners;
         room.cards = [];
+        room.roundActive = true;
         startRoundExecution();
     }
     else if (data.type === 'SUBMIT_CARD' && net.role === 'host') {
         if (!room.cards.some(c => c.creator === data.creator)) {
             room.cards.push({ text: data.text, creator: data.creator, revealed: false, selected: false });
-            broadcastToAll({ type: 'CARD_COUNT', count: room.cards.length, total: room.players.length - 1 });
-            if (room.cards.length >= room.players.length - 1) {
+            broadcastToAll({ type: 'CARD_COUNT', count: room.cards.length, total: room.activeWriters.length });
+            // ── NEW: completion check uses activeWriters, not all players ──
+            if (room.cards.length >= room.activeWriters.length) {
                 clearInterval(roundTimerInterval);
+                room.roundActive = false;
                 room.cards.sort(() => Math.random() - 0.5);
-                broadcastToAll({ type: 'GO_TO_REVEAL', cards: room.cards });
+                broadcastToAll({ type: 'GO_TO_REVEAL', cards: room.cards, scores: room.scores });
             }
         }
     }
@@ -274,6 +386,9 @@ function handleData(data, connection) {
     }
     else if (data.type === 'GO_TO_REVEAL') {
         room.cards = data.cards;
+        // ── NEW: sync scores on reveal ──
+        if (data.scores !== undefined) room.scores = data.scores;
+        room.roundActive = false;
         clearInterval(roundTimerInterval);
         renderRevealStage();
     }
@@ -285,7 +400,21 @@ function handleData(data, connection) {
     else if (data.type === 'SELECT_CARD') {
         room.cards.forEach((c,i) => c.selected = (i === data.index));
         room.cards.forEach((_,i) => updateCardDOM(i));
-        if (net.role === 'host' && connection) rebroadcast(data, connection);
+
+        // ── NEW: award point to card creator (host is authoritative) ──
+        if (net.role === 'host') {
+            const winner = room.cards[data.index].creator;
+            if (!winner.startsWith('bot')) {   // bots don't need scores tracked visibly, but they do count
+                room.scores[winner] = (room.scores[winner] || 0) + 1;
+            } else {
+                room.scores[winner] = (room.scores[winner] || 0) + 1;
+            }
+            broadcastToAll({ type: 'SYNC_SCORES', scores: room.scores });
+            if (connection) rebroadcast(data, connection);
+        }
+    }
+    else if (data.type === 'SYNC_SCORES') {
+        room.scores = data.scores;
     }
     else if (data.type === 'TIMER_TICK') {
         document.querySelectorAll('.timer-display').forEach(d => {
@@ -293,9 +422,11 @@ function handleData(data, connection) {
         });
     }
     else if (data.type === 'GAME_OVER') {
+        // ── NEW: sync final scores before rendering ──
+        if (data.scores !== undefined) room.scores = data.scores;
+        if (data.lateJoiners !== undefined) room.lateJoiners = data.lateJoiners;
         executeGameOverUI();
     }
-    // ── CHANGE D: handle being kicked or rejected for duplicate name ──
     else if (data.type === 'NAME_TAKEN') {
         leaveRoom();
         alert("That nickname is already taken in this room. Please choose a different name.");
@@ -303,6 +434,42 @@ function handleData(data, connection) {
     else if (data.type === 'KICKED') {
         leaveRoom();
         alert("You were removed from the room by the host.");
+    }
+    // ── NEW: mid-game catch-up for late joiners ──
+    else if (data.type === 'CATCH_UP') {
+        room.currentSubject  = data.subject;
+        room.currentPrompt   = data.prompt;
+        room.currentCategory = data.category;
+        room.cards           = data.cards || [];
+        room.scores          = data.scores || {};
+        room.lateJoiners     = data.lateJoiners || [];
+        room.maxRounds       = data.maxRounds || room.maxRounds;
+        room.roundCount      = data.roundCount || room.roundCount;
+        room.roundActive     = true;
+
+        // Show them the reveal stage as a read-only observer
+        // (cards may be partially in, so it shows what's been submitted so far)
+        $('revealPromptLabel').innerText  = room.currentPrompt;
+        $('revealInstructions').innerText = `You joined mid-round — sit tight for the next one!`;
+        $('nextRoundBtn').style.display   = 'none';
+
+        const container = $('cardsWrapper');
+        container.innerHTML = `
+            <div class="late-join-notice">
+                ⏳ Round in progress...<br>
+                <span>You'll be a full player starting next round.</span>
+            </div>
+        `;
+        showScreen('scrRevealStage');
+    }
+    // ── NEW: notify everyone of a late joiner ──
+    else if (data.type === 'PLAYER_JOINED_LATE') {
+        room.players    = data.players;
+        room.lateJoiners = data.lateJoiners || room.lateJoiners;
+        room.scores     = data.scores || room.scores;
+        if (!room.lateJoiners.includes(data.name)) room.lateJoiners.push(data.name);
+        showToast(`📲 ${data.name} joined the game!`);
+        Vibrate.tap();
     }
 }
 
@@ -350,7 +517,6 @@ function updateLobbyUI() {
     }
 }
 
-// ── CHANGE E: kickPlayer now finds the connection by _kickName, sends KICKED, then closes ──
 function kickPlayer(name) {
     const kickedConn = net.connections.find(c => c._kickName === name);
     if (kickedConn) {
@@ -367,12 +533,21 @@ function kickPlayer(name) {
 // ── ROUND FLOW ─────────────────────────────────────────────────────────────────
 function broadcastStartRound() {
     if (room.players.length < 3) { alert("Need at least 3 players!"); return; }
+
+    // ── NEW: promote late joiners to full players for this round ──
+    room.lateJoiners = [];
+
+    // ── NEW: check round limit ──
+    if (room.roundCount >= room.maxRounds) {
+        broadcastToAll({ type: 'GAME_OVER', scores: room.scores, lateJoiners: room.lateJoiners });
+        return;
+    }
     
     const pool = QUESTIONS[room.currentCategory] || QUESTIONS.spicy;
     const unusedQuestions = pool.filter(q => !room.playedQuestions.includes(q));
     
     if (unusedQuestions.length === 0) {
-        broadcastToAll({ type: 'GAME_OVER' });
+        broadcastToAll({ type: 'GAME_OVER', scores: room.scores, lateJoiners: room.lateJoiners });
         return;
     }
     
@@ -380,8 +555,27 @@ function broadcastStartRound() {
     const subject  = eligible[Math.floor(Math.random() * eligible.length)];
     const raw      = unusedQuestions[Math.floor(Math.random() * unusedQuestions.length)];
     const prompt   = raw.replace(/\[Subject\]/g, subject);
+
+    // ── NEW: increment round count ──
+    room.roundCount++;
+
+    // ── NEW: set activeWriters — everyone except subject ──
+    room.activeWriters = room.players.filter(p => p !== subject && !p.startsWith('bot_late'));
+
+    // ── NEW: make sure all players have a score entry ──
+    room.players.forEach(p => {
+        if (!(p in room.scores)) room.scores[p] = 0;
+    });
     
-    broadcastToAll({ type: 'START_ROUND', subject, prompt, category: room.currentCategory, rawQuestion: raw });
+    broadcastToAll({
+        type: 'START_ROUND',
+        subject,
+        prompt,
+        category: room.currentCategory,
+        rawQuestion: raw,
+        roundCount: room.roundCount,
+        lateJoiners: room.lateJoiners
+    });
 }
 
 function startRoundExecution() {
@@ -449,15 +643,18 @@ function renderRevealStage() {
     
     const pool = QUESTIONS[room.currentCategory] || QUESTIONS.spicy;
     const outOfPrompts = pool.every(q => room.playedQuestions.includes(q));
+    // ── NEW: also check round limit ──
+    const roundLimitReached = room.roundCount >= room.maxRounds;
 
     if (net.role === 'host') {
-        if (outOfPrompts) {
-            $('nextRoundBtn').style.display = "block";
-            $('nextRoundBtn').innerText = "End Game (No Prompts Left)";
-            $('nextRoundBtn').onclick = () => broadcastToAll({ type: 'GAME_OVER' });
+        $('nextRoundBtn').style.display = "block";
+        if (outOfPrompts || roundLimitReached) {
+            $('nextRoundBtn').innerText = roundLimitReached
+                ? `End Game (Round ${room.roundCount}/${room.maxRounds})`
+                : "End Game (No Prompts Left)";
+            $('nextRoundBtn').onclick = () => broadcastToAll({ type: 'GAME_OVER', scores: room.scores, lateJoiners: room.lateJoiners });
         } else {
-            $('nextRoundBtn').style.display = "block";
-            $('nextRoundBtn').innerText = "Next Round";
+            $('nextRoundBtn').innerText = `Next Round (${room.roundCount}/${room.maxRounds})`;
             $('nextRoundBtn').onclick = () => broadcastStartRound();
         }
     } else {
@@ -564,29 +761,95 @@ function updateCardDOM(idx) {
     }
 }
 
+// ── GAME OVER / SCOREBOARD ────────────────────────────────────────────────────
 function executeGameOverUI() {
     clearInterval(roundTimerInterval);
-    $('revealPromptLabel').innerText = "Game Over!";
-    $('revealInstructions').innerText = "All available deck questions have been exhausted.";
-    
+    room.roundActive = false;
+
+    $('revealPromptLabel').innerText  = `Game Over — ${room.roundCount} Round${room.roundCount !== 1 ? 's' : ''} Played`;
+    $('revealInstructions').innerText = "Final Scoreboard";
+
+    // ── Build sorted scoreboard ──
+    const humanPlayers = room.players.filter(p => !p.startsWith('bot'));
+    const sorted = [...humanPlayers].sort((a, b) => (room.scores[b] || 0) - (room.scores[a] || 0));
+
+    const medals = ['🥇', '🥈', '🥉'];
     const container = $('cardsWrapper');
-    container.innerHTML = `
-        <div style="text-align: center; padding: 20px; color: var(--text-secondary); font-size: 15px; line-height: 1.5;">
-            🏆 Thanks for playing! Every question in this deck category was shown once. To play again with fresh prompts, return to the lobby and switch categories or restart.
-        </div>
-    `;
-    
+    container.innerHTML = "";
+
+    const board = document.createElement('div');
+    board.className = 'scoreboard';
+
+    const title = document.createElement('div');
+    title.className = 'scoreboard-title';
+    title.innerText = '🏆 Final Scores';
+    board.appendChild(title);
+
+    sorted.forEach((name, rank) => {
+        const pts   = room.scores[name] || 0;
+        const isMe  = name === net.myName;
+        const isLate = room.lateJoiners.includes(name);
+
+        const row = document.createElement('div');
+        row.className = 'scoreboard-row' + (isMe ? ' scoreboard-row--me' : '');
+
+        const left = document.createElement('div');
+        left.className = 'scoreboard-left';
+
+        const medal = document.createElement('span');
+        medal.className = 'scoreboard-medal';
+        medal.innerText = medals[rank] || `${rank + 1}.`;
+
+        const nameEl = document.createElement('span');
+        nameEl.className = 'scoreboard-name';
+        nameEl.innerText = name + (isMe ? ' (you)' : '');
+
+        if (isLate) {
+            const badge = document.createElement('span');
+            badge.className = 'late-badge';
+            badge.innerText = 'late';
+            nameEl.appendChild(badge);
+        }
+
+        left.appendChild(medal);
+        left.appendChild(nameEl);
+
+        const right = document.createElement('div');
+        right.className = 'scoreboard-points';
+        right.innerText = `${pts} pt${pts !== 1 ? 's' : ''}`;
+
+        row.appendChild(left);
+        row.appendChild(right);
+        board.appendChild(row);
+    });
+
+    container.appendChild(board);
+
     if (net.role === 'host') {
         $('nextRoundBtn').style.display = "block";
         $('nextRoundBtn').innerText = "Return to Lobby";
         $('nextRoundBtn').onclick = () => {
             room.playedQuestions = [];
-            broadcastToAll({ type: 'SYNC_LOBBY', players: room.players, category: room.currentCategory, playedQuestions: [] });
+            room.roundCount      = 0;
+            room.scores          = {};
+            room.lateJoiners     = [];
+            broadcastToAll({
+                type: 'SYNC_LOBBY',
+                players: room.players,
+                category: room.currentCategory,
+                playedQuestions: [],
+                maxRounds: room.maxRounds,
+                roundCount: 0,
+                scores: {},
+                lateJoiners: []
+            });
             showScreen('scrLobby');
         };
     } else {
         $('nextRoundBtn').style.display = "none";
     }
+
+    showScreen('scrRevealStage');
 }
 
 function rebroadcast(payload, senderConn) {
