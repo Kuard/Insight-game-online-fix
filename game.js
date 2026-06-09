@@ -64,11 +64,13 @@ fetch('questions.json')
     .then(response => response.json())
     .then(data => {
         QUESTIONS = data;
-        QUESTIONS.misc = [
-            ...QUESTIONS.classic.slice(0,6),
-            ...QUESTIONS.spicy.slice(0,6),
-            ...QUESTIONS.trash.slice(0,6)
-        ];
+        // Dynamically build misc using ALL available categories so it lasts for unlimited games
+        QUESTIONS.misc = [];
+        for (const cat in QUESTIONS) {
+            if (cat !== 'misc' && Array.isArray(QUESTIONS[cat])) {
+                QUESTIONS.misc.push(...QUESTIONS[cat]);
+            }
+        }
     })
     .catch(err => console.error("Error loading questions.json:", err));
 
@@ -80,7 +82,7 @@ let room = {
     // ── NEW STATE ──
     scores: {},           // { playerName: number }
     lateJoiners: [],      // names of players who joined mid-game (for badge display)
-    maxRounds: 10,        // 10 | 30 | 45
+    maxRounds: 10,        // 10 | 30 | 45 | 'unlimited'
     roundCount: 0,        // rounds completed so far
     roundActive: false,   // true while a round is in progress (writing phase)
     activeWriters: []     // players who were present at round start and must submit
@@ -114,6 +116,12 @@ function setCategory(cat, el) {
     if (net.role === 'host') broadcastToAll({ type: 'SYNC_CATEGORY', category: cat });
 }
 
+function confirmNSFW(el) {
+    if (confirm("WARNING: The NSFW category contains extreme and sensitive content. Are you sure you want to proceed?")) {
+        setCategory('nsfw', el);
+    }
+}
+
 // ── NEW: Set max rounds (host only) ──────────────────────────────────────────
 function setMaxRounds(n, el) {
     room.maxRounds = n;
@@ -144,6 +152,7 @@ function confirmLeaveRoom() {
 
 function leaveRoom() {
     clearInterval(roundTimerInterval);
+    if (window.hostWaitInterval) clearInterval(window.hostWaitInterval);
     if (net.peer) {
         try { net.peer.destroy(); } catch(e) {}
     }
@@ -368,6 +377,13 @@ function handleData(data, connection) {
         room.roundActive = true;
         startRoundExecution();
     }
+    else if (data.type === 'REQUEST_NEXT_ROUND' && net.role === 'host') {
+        if (window.hostWaitInterval) {
+            clearInterval(window.hostWaitInterval);
+            window.hostWaitInterval = null;
+        }
+        broadcastStartRound();
+    }
     else if (data.type === 'SUBMIT_CARD' && net.role === 'host') {
         if (!room.cards.some(c => c.creator === data.creator)) {
             room.cards.push({ text: data.text, creator: data.creator, revealed: false, selected: false });
@@ -538,7 +554,7 @@ function broadcastStartRound() {
     room.lateJoiners = [];
 
     // ── NEW: check round limit ──
-    if (room.roundCount >= room.maxRounds) {
+    if (room.maxRounds !== 'unlimited' && room.roundCount >= room.maxRounds) {
         broadcastToAll({ type: 'GAME_OVER', scores: room.scores, lateJoiners: room.lateJoiners });
         return;
     }
@@ -614,6 +630,7 @@ function startRoundExecution() {
     }
 
     if (net.myName === room.currentSubject) {
+        $('subjectPromptLabel').innerText = room.currentPrompt;
         $('submissionTrackLabel').innerText = "0 cards locked in...";
         setupFidgets();
         showScreen('scrSubjectLounge');
@@ -639,29 +656,86 @@ function submitWriterCard() {
 
 // ── REVEAL STAGE ───────────────────────────────────────────────────────────────
 function renderRevealStage() {
+    if (window.hostWaitInterval) {
+        clearInterval(window.hostWaitInterval);
+        window.hostWaitInterval = null;
+    }
+
     $('revealPromptLabel').innerText = room.currentPrompt;
     
     const pool = QUESTIONS[room.currentCategory] || QUESTIONS.spicy;
     const outOfPrompts = pool.every(q => room.playedQuestions.includes(q));
-    // ── NEW: also check round limit ──
-    const roundLimitReached = room.roundCount >= room.maxRounds;
+    const roundLimitReached = (room.maxRounds !== 'unlimited') && (room.roundCount >= room.maxRounds);
+    const isMeSubject = (net.myName === room.currentSubject);
+    const isHost = (net.role === 'host');
+    const gameOver = outOfPrompts || roundLimitReached;
 
-    if (net.role === 'host') {
-        $('nextRoundBtn').style.display = "block";
-        if (outOfPrompts || roundLimitReached) {
-            $('nextRoundBtn').innerText = roundLimitReached
+    let nextBtn = $('nextRoundBtn');
+
+    if (gameOver) {
+        if (isHost) {
+            nextBtn.style.display = "block";
+            nextBtn.disabled = false;
+            nextBtn.innerText = roundLimitReached
                 ? `End Game (Round ${room.roundCount}/${room.maxRounds})`
                 : "End Game (No Prompts Left)";
-            $('nextRoundBtn').onclick = () => broadcastToAll({ type: 'GAME_OVER', scores: room.scores, lateJoiners: room.lateJoiners });
+            nextBtn.onclick = () => broadcastToAll({ type: 'GAME_OVER', scores: room.scores, lateJoiners: room.lateJoiners });
         } else {
-            $('nextRoundBtn').innerText = `Next Round (${room.roundCount}/${room.maxRounds})`;
-            $('nextRoundBtn').onclick = () => broadcastStartRound();
+            nextBtn.style.display = "none";
         }
     } else {
-        $('nextRoundBtn').style.display = "none";
+        if (isHost || isMeSubject) {
+            nextBtn.style.display = "block";
+            nextBtn.disabled = false;
+            
+            let nextText = room.maxRounds === 'unlimited' 
+                ? `Next Round (${room.roundCount})` 
+                : `Next Round (${room.roundCount}/${room.maxRounds})`;
+
+            if (isHost && !isMeSubject) {
+                nextBtn.disabled = true;
+                let secs = 10;
+                nextBtn.innerText = nextText + ` (Waiting for Subject... ${secs}s)`;
+                
+                window.hostWaitInterval = setInterval(() => {
+                    if (!$('scrRevealStage').classList.contains('active')) {
+                        clearInterval(window.hostWaitInterval);
+                        return;
+                    }
+                    secs--;
+                    if (secs > 0) {
+                        nextBtn.innerText = nextText + ` (Waiting for Subject... ${secs}s)`;
+                    } else {
+                        clearInterval(window.hostWaitInterval);
+                        nextBtn.disabled = false;
+                        nextBtn.innerText = nextText;
+                    }
+                }, 1000);
+
+                nextBtn.onclick = () => {
+                    clearInterval(window.hostWaitInterval);
+                    nextBtn.disabled = true;
+                    broadcastStartRound();
+                };
+            } else if (isHost && isMeSubject) {
+                nextBtn.innerText = nextText;
+                nextBtn.onclick = () => {
+                    nextBtn.disabled = true;
+                    broadcastStartRound();
+                };
+            } else if (isMeSubject && !isHost) {
+                nextBtn.innerText = nextText;
+                nextBtn.onclick = () => {
+                    nextBtn.disabled = true;
+                    nextBtn.innerText = "Starting...";
+                    net.conn.send({ type: 'REQUEST_NEXT_ROUND' });
+                };
+            }
+        } else {
+            nextBtn.style.display = "none";
+        }
     }
 
-    const isMeSubject = (net.myName === room.currentSubject);
     $('revealInstructions').innerText = isMeSubject
         ? "Tap to flip, then choose your favourite!"
         : `${room.currentSubject} is judging...`;
