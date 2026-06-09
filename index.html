@@ -53,15 +53,16 @@
                 <div class="deck-pill" onclick="setCategory('deep',this)">🧠 Deep</div>
                 <div class="deck-pill" onclick="setCategory('hooot',this)">🔥 Hooot</div>
                 <div class="deck-pill" onclick="setCategory('trash',this)">🗑️ Trash</div>
-                <div class="deck-pill span-full" onclick="setCategory('misc',this)">🎲 Mixed Decks</div>
+                <div class="deck-pill" onclick="confirmNSFW(this)">🔞 NSFW</div>
+                <div class="deck-pill" onclick="setCategory('misc',this)">🎲 Mixed Decks</div>
             </div>
 
-            <!-- NEW: Round count selector -->
             <div class="section-label" style="margin-top:14px;">GAME LENGTH:</div>
             <div class="round-grid">
                 <div class="round-pill active" onclick="setMaxRounds(10,this)">10 rounds</div>
                 <div class="round-pill" onclick="setMaxRounds(30,this)">30 rounds</div>
                 <div class="round-pill" onclick="setMaxRounds(45,this)">45 rounds</div>
+                <div class="round-pill" onclick="setMaxRounds('unlimited',this)">Unlimited</div>
             </div>
 
             <button class="btn-secondary" onclick="addTestBots()" style="margin-top: 14px; width: 100%; border-color: var(--accent-blue); color: var(--text-primary);">➕ Add Test Bots</button>
@@ -79,6 +80,9 @@
         <div class="brand-header">
             <div class="brand-title" style="font-size:26px;">You're the Target 🎯</div>
             <div class="brand-subtitle">Players are writing about you...</div>
+        </div>
+        <div class="prompt-box" style="margin-bottom: 8px;">
+            <div class="prompt-text" id="subjectPromptLabel" style="font-size: 15px;">...</div>
         </div>
         <div class="timer-display" id="subjectTimerLabel">0:45</div>
         <div class="fidget-board">
