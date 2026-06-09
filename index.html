@@ -55,6 +55,15 @@
                 <div class="deck-pill" onclick="setCategory('trash',this)">🗑️ Trash</div>
                 <div class="deck-pill span-full" onclick="setCategory('misc',this)">🎲 Mixed Decks</div>
             </div>
+
+            <!-- NEW: Round count selector -->
+            <div class="section-label" style="margin-top:14px;">GAME LENGTH:</div>
+            <div class="round-grid">
+                <div class="round-pill active" onclick="setMaxRounds(10,this)">10 rounds</div>
+                <div class="round-pill" onclick="setMaxRounds(30,this)">30 rounds</div>
+                <div class="round-pill" onclick="setMaxRounds(45,this)">45 rounds</div>
+            </div>
+
             <button class="btn-secondary" onclick="addTestBots()" style="margin-top: 14px; width: 100%; border-color: var(--accent-blue); color: var(--text-primary);">➕ Add Test Bots</button>
         </div>
 
