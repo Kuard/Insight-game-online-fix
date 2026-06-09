@@ -116,12 +116,6 @@ function setCategory(cat, el) {
     if (net.role === 'host') broadcastToAll({ type: 'SYNC_CATEGORY', category: cat });
 }
 
-function confirmNSFW(el) {
-    if (confirm("WARNING: The NSFW category contains extreme and sensitive content. Are you sure you want to proceed?")) {
-        setCategory('nsfw', el);
-    }
-}
-
 // ── NEW: Set max rounds (host only) ──────────────────────────────────────────
 function setMaxRounds(n, el) {
     room.maxRounds = n;
@@ -398,7 +392,7 @@ function handleData(data, connection) {
         }
     }
     else if (data.type === 'CARD_COUNT') {
-        if ($('submissionTrackLabel')) $('submissionTrackLabel').innerText = `${data.count} of ${data.total} cards locked in...`;
+        if ($('submissionTrackLabel')) \( ('submissionTrackLabel').innerText = ` \){data.count} of ${data.total} cards locked in...`;
     }
     else if (data.type === 'GO_TO_REVEAL') {
         room.cards = data.cards;
@@ -529,7 +523,7 @@ function updateLobbyUI() {
     const startBtn = $('hostStartBtn');
     if (startBtn) {
         startBtn.disabled = count < 3;
-        startBtn.innerText = count < 3 ? `Need ${needed} more player${needed > 1 ? 's' : ''}...` : "Start Game";
+        startBtn.innerText = count < 3 ? `Need \( {needed} more player \){needed > 1 ? 's' : ''}...` : "Start Game";
     }
 }
 
@@ -677,7 +671,7 @@ function renderRevealStage() {
             nextBtn.style.display = "block";
             nextBtn.disabled = false;
             nextBtn.innerText = roundLimitReached
-                ? `End Game (Round ${room.roundCount}/${room.maxRounds})`
+                ? `End Game (Round \( {room.roundCount}/ \){room.maxRounds})`
                 : "End Game (No Prompts Left)";
             nextBtn.onclick = () => broadcastToAll({ type: 'GAME_OVER', scores: room.scores, lateJoiners: room.lateJoiners });
         } else {
@@ -690,7 +684,7 @@ function renderRevealStage() {
             
             let nextText = room.maxRounds === 'unlimited' 
                 ? `Next Round (${room.roundCount})` 
-                : `Next Round (${room.roundCount}/${room.maxRounds})`;
+                : `Next Round (\( {room.roundCount}/ \){room.maxRounds})`;
 
             if (isHost && !isMeSubject) {
                 nextBtn.disabled = true;
@@ -809,7 +803,7 @@ function renderRevealStage() {
 }
 
 function updateCardDOM(idx) {
-    const el = $(`rcard-${idx}`);
+    const el = \( (`rcard- \){idx}`);
     if (!el) return;
     const c = room.cards[idx];
     const isMeSubject = (net.myName === room.currentSubject);
@@ -840,7 +834,7 @@ function executeGameOverUI() {
     clearInterval(roundTimerInterval);
     room.roundActive = false;
 
-    $('revealPromptLabel').innerText  = `Game Over — ${room.roundCount} Round${room.roundCount !== 1 ? 's' : ''} Played`;
+    $('revealPromptLabel').innerText  = `Game Over — \( {room.roundCount} Round \){room.roundCount !== 1 ? 's' : ''} Played`;
     $('revealInstructions').innerText = "Final Scoreboard";
 
     // ── Build sorted scoreboard ──
@@ -890,7 +884,7 @@ function executeGameOverUI() {
 
         const right = document.createElement('div');
         right.className = 'scoreboard-points';
-        right.innerText = `${pts} pt${pts !== 1 ? 's' : ''}`;
+        right.innerText = `\( {pts} pt \){pts !== 1 ? 's' : ''}`;
 
         row.appendChild(left);
         row.appendChild(right);
