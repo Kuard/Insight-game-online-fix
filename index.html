@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Insight - Party Game Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Permanent+Marker&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app-container">
+
+    <div class="screen active" id="scrMenu" style="justify-content: center;">
+        <div class="brand-header" style="text-align: center; margin-bottom: 30px;">
+            <div class="brand-title" style="font-size: 24px;">INSIGHT</div>
+            <div class="brand-subtitle">Party Game Engine</div>
+        </div>
+        <input type="text" class="input-field" id="menuNameInput" placeholder="Your Nickname" maxlength="12">
+        <button class="btn-main" onclick="createLiveRoom()">Host New Game</button>
+        <button class="btn-secondary" onclick="showScreen('scrJoin')">Join a Room</button>
+    </div>
+
+    <div class="screen" id="scrJoin" style="justify-content: center;">
+        <div class="brand-header" style="text-align: center; margin-bottom: 30px;">
+            <div class="brand-title" style="font-size: 24px;">JOIN</div>
+            <div class="brand-subtitle">Enter the Room ID your host shared</div>
+        </div>
+        <input type="text" class="input-field room-code-input" id="joinRoomInput" placeholder="XXXX" maxlength="4" style="text-transform: uppercase;">
+        <button class="btn-main" onclick="joinLiveRoom()">Connect to Lobby</button>
+        <button class="btn-secondary" onclick="showScreen('scrMenu')">Back</button>
+    </div>
+
+    <div class="screen" id="scrLobby">
+        <div class="lobby-header">
+            <div class="circle-btn" style="opacity: 0;"></div> <div class="brand-title">LOBBY</div>
+            <div class="circle-btn" onclick="triggerLeaveConfirmation()" title="Leave Room">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            </div>
+        </div>
+
+        <div class="room-section">
+            <div class="brand-subtitle">Share this Room ID with your friends</div>
+            <div class="room-code-display" id="lobbyIdLabel">⌛</div>
+            <button class="btn-outline" onclick="navigator.clipboard.writeText(document.getElementById('lobbyIdLabel').innerText)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copy Room ID
+            </button>
+        </div>
+
+        <div class="lobby-status" id="lobbyStatusLabel">
+            Waiting for connection...
+        </div>
+
+        <div class="section-title">Players in Lobby</div>
+        <div id="lobbyPlayerGrid"></div> 
+
+        <div id="hostOnlyControls" style="display:none;">
+            <div class="section-title">Choose Your Deck</div>
+            <div class="deck-grid">
+                <div class="deck-pill" onclick="setCategory('classic', this)">
+                    <div class="deck-icon icon-mask"></div>
+                    <div class="deck-title">Classic</div><div class="deck-subtitle">Timeless</div>
+                </div>
+                <div class="deck-pill" onclick="setCategory('trouble', this)">
+                    <div class="deck-icon icon-lightning"></div>
+                    <div class="deck-title">Trouble</div><div class="deck-subtitle">Chaotic</div>
+                </div>
+                <div class="deck-pill" onclick="setCategory('spicy', this)">
+                    <div class="deck-icon icon-pepper"></div>
+                    <div class="deck-title">Spicy</div><div class="deck-subtitle">Hot takes</div>
+                </div>
+                <div class="deck-pill" onclick="setCategory('drain', this)">
+                    <div class="deck-icon icon-brain"></div>
+                    <div class="deck-title">Drain</div><div class="deck-subtitle">Get real</div>
+                </div>
+                <div class="deck-pill" onclick="setCategory('flirt', this)">
+                    <div class="deck-icon icon-sparkles"></div>
+                    <div class="deck-title">Flirt</div><div class="deck-subtitle">Very hot</div>
+                </div>
+                <div class="deck-pill" onclick="setCategory('trash', this)">
+                    <div class="deck-icon icon-trash"></div>
+                    <div class="deck-title">Trash</div><div class="deck-subtitle">Savage</div>
+                </div>
+                <div class="deck-pill active" onclick="confirmNSFW(this)">
+                    <div class="deck-icon icon-18"></div>
+                    <div class="deck-title">NSFW</div><div class="deck-subtitle">Adults only</div>
+                </div>
+                <div class="deck-pill" onclick="setCategory('misc', this)">
+                    <div class="deck-icon icon-dice"></div>
+                    <div class="deck-title">Mixed</div><div class="deck-subtitle">Random fun</div>
+                </div>
+            </div>
+
+            <div class="section-title">Game Length</div>
+            <div class="round-grid">
+                <div class="round-pill" onclick="setMaxRounds(10, this)"><div class="round-val">10</div><div class="round-sub">Rounds</div></div>
+                <div class="round-pill" onclick="setMaxRounds(30, this)"><div class="round-val">30</div><div class="round-sub">Rounds</div></div>
+                <div class="round-pill" onclick="setMaxRounds(45, this)"><div class="round-val">45</div><div class="round-sub">Rounds</div></div>
+                <div class="round-pill active" onclick="setMaxRounds('unlimited', this)">
+                    <div class="round-val">
+                        <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="24" height="24"><path d="M256,256s-48-96-126-96c-54.12,0-98,43-98,96s43.88,96,98,96c30,0,56.45-13.18,78-32" style="fill:none;stroke:currentColor;stroke-linecap:round;stroke-miterlimit:10;stroke-width:48px"></path><path d="M256,256s48,96,126,96c54.12,0,98-43,98-96s-43.88-96-98-96c-29.37,0-56.66,13.75-78,32" style="fill:none;stroke:currentColor;stroke-linecap:round;stroke-miterlimit:10;stroke-width:48px"></path></svg>
+                    </div>
+                    <div class="round-sub">Unlimited</div>
+                </div>
+            </div>
+
+            <button class="btn-bot-add" onclick="addTestBots()">
+                <div class="bot-left-side">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>Add Test Bots</span>
+                </div>
+            </button>
+        </div>
+
+        <button class="btn-main" id="hostStartBtn" style="display:none; margin-top:20px;" onclick="broadcastStartRound()">Start Game</button>
+        <p class="sub-track" id="clientWaitNotice" style="display:none; text-align:center; padding:20px 0; color: var(--neon-pink);">WAITING FOR HOST...</p>
+    </div>
+
+    <div class="screen" id="scrSubjectLounge">
+        <div class="lobby-header">
+            <div class="circle-btn" style="opacity: 0;"></div>
+            <div class="brand-title">THE TARGET</div>
+            <div class="circle-btn" onclick="triggerLeaveConfirmation()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></div>
+        </div>
+        <div class="brand-subtitle" style="text-align:center; margin-bottom: 20px;">Players are writing about you...</div>
+        
+        <div class="prompt-box"><div class="prompt-text" id="subjectPromptLabel">...</div></div>
+        <div class="timer-display" id="subjectTimerLabel" style="text-align:center; font-size:32px; font-weight:800; color:var(--neon-pink); margin: 20px 0;">0:45</div>
+        
+        <div class="fidget-board">
+            <div class="fidget-toy"><div class="clicker-btn" id="toyClicker">0</div></div>
+            <div class="fidget-toy"><div class="switch-track" id="toyToggle"><div class="switch-handle"></div></div></div>
+            <div class="fidget-toy" style="grid-column: span 2;"><div class="bubble-grid" id="toyBubbleGrid"></div></div>
+        </div>
+        
+        <div class="sub-track" id="submissionTrackLabel" style="text-align:center; margin-top:auto; color:var(--text-secondary);">0 cards locked in...</div>
+    </div>
+
+    <div class="screen" id="scrWriterInput">
+        <div class="lobby-header">
+            <div class="circle-btn" style="opacity: 0;"></div>
+            <div class="brand-title" id="writerCategoryLabel" style="color:var(--neon-pink);">CATEGORY</div>
+            <div class="circle-btn" onclick="triggerLeaveConfirmation()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></div>
+        </div>
+        
+        <div class="prompt-box"><div class="prompt-text" id="activePromptLabel">...</div></div>
+        <div class="timer-display" id="writerTimerLabel" style="text-align:center; font-size:32px; font-weight:800; color:var(--neon-green); margin: 20px 0;">0:45</div>
+        
+        <textarea class="input-field" id="writerInput" placeholder="Type your answer..." rows="3" style="resize:none; min-height:80px; margin-bottom: 8px;"></textarea>
+        <div style="text-align:right; font-size:11px; color:var(--text-secondary); margin-bottom: 20px;" id="charCount">0 / 120 words</div>
+        
+        <button class="btn-main" id="lockInBtn" onclick="submitWriterCard()" style="margin-top:auto;">Lock In Card</button>
+    </div>
+
+    <div class="screen" id="scrRevealStage">
+        <div class="lobby-header">
+            <div class="circle-btn" style="opacity: 0;"></div>
+            <div class="brand-title">THE REVEAL</div>
+            <div class="circle-btn" onclick="triggerLeaveConfirmation()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></div>
+        </div>
+        
+        <div class="brand-subtitle" id="revealInstructions" style="text-align:center; margin-bottom:20px;">...</div>
+        <div class="prompt-box"><div class="prompt-text" id="revealPromptLabel">...</div></div>
+        
+        <div class="cards-stack" id="cardsWrapper" style="display:flex; flex-direction:column; gap:12px; margin: 20px 0; overflow-y:auto;"></div>
+        
+        <button class="btn-main" id="nextRoundBtn" style="display:none; margin-top:auto;">Next Round</button>
+    </div>
+
+</div>
+
+<div class="modal-overlay" id="confirmLeaveModal">
+    <div class="modal-card">
+        <div class="modal-title">Abandon Match?</div>
+        <div class="modal-desc">Are you sure you want to exit? You will disconnect from your group and lose current progress.</div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="dismissLeaveConfirmation()">Cancel</button>
+            <button class="btn-main" onclick="confirmLeaveRoom()">Leave</button>
+        </div>
+    </div>
+</div>
+
+<script src="game.js"></script>
+<div class="modal-overlay" id="confirmNSFWModal">
+    <div class="modal-card">
+        <div class="modal-title">18+ Content Warning</div>
+        <div class="modal-desc">The NSFW category contains extreme and sensitive content. Are you sure you want to proceed?</div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="dismissNSFWConfirmation()">Cancel</button>
+            <button class="btn-main" onclick="acceptNSFWConfirmation()">Proceed</button>
+        </div>
+    </div>
+</div>
+</body>
+</html>
