@@ -61,7 +61,7 @@ const Vibrate = {
 let QUESTIONS = {};
 
 // Change 'questions.json' to './questions.json'
-fetch('./questions.json')
+fetch('questions.json')
     .then(response => {
         if (!response.ok) throw new Error("Network response was not ok");
         return response.json();
@@ -74,9 +74,12 @@ fetch('./questions.json')
                 QUESTIONS.misc.push(...QUESTIONS[cat]);
             }
         }
+        console.log("Questions loaded successfully!");
     })
-    .catch(err => console.error("Error loading questions.json:", err));
-
+    .catch(err => {
+        console.error("Error loading questions.json:", err);
+        alert("Failed to load questions from server. Check file paths.");
+    });
 // ── STATE ──────────────────────────────────────────────────────────────────────
 let net  = { peer: null, conn: null, connections: [], role: 'client', myName: '' };
 let room = {
@@ -572,6 +575,16 @@ function kickPlayer(name) {
 function broadcastStartRound() {
     if (room.players.length < 3) { alert("Need at least 3 players!"); return; }
 
+    // --- ADD THIS SAFETY CHECK ---
+    const pool = QUESTIONS[room.currentCategory] || QUESTIONS.spicy;
+    if (!pool || pool.length === 0) {
+        alert("Questions are still loading from the server! Give it a second or refresh the page.");
+        return;
+    }
+    // -----------------------------
+
+    // ... NEW: promote late joiners to full players for this round ...
+    // (Keep the rest of your function exactly the same)
     // ── NEW: promote late joiners to full players for this round ──
     room.lateJoiners = [];
 
