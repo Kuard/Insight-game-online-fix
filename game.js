@@ -575,25 +575,24 @@ function kickPlayer(name) {
 function broadcastStartRound() {
     if (room.players.length < 3) { alert("Need at least 3 players!"); return; }
 
-    // --- ADD THIS SAFETY CHECK ---
-    const pool = QUESTIONS[room.currentCategory] || QUESTIONS.spicy;
-    if (!pool || pool.length === 0) {
+    // --- SAFETY CHECK (Renamed variable to prevent syntax crash) ---
+    const initialPool = QUESTIONS[room.currentCategory] || QUESTIONS.spicy;
+    if (!initialPool || initialPool.length === 0) {
         alert("Questions are still loading from the server! Give it a second or refresh the page.");
         return;
     }
-    // -----------------------------
+    // -------------------------------------------------------------
 
-    // ... NEW: promote late joiners to full players for this round ...
-    // (Keep the rest of your function exactly the same)
-    // ── NEW: promote late joiners to full players for this round ──
+    // Promote late joiners to full players for this round
     room.lateJoiners = [];
 
-    // ── NEW: check round limit ──
+    // Check round limit
     if (room.maxRounds !== 'unlimited' && room.roundCount >= room.maxRounds) {
         broadcastToAll({ type: 'GAME_OVER', scores: room.scores, lateJoiners: room.lateJoiners });
         return;
     }
     
+    // THIS IS NOW THE ONLY 'const pool' DECLARATION
     const pool = QUESTIONS[room.currentCategory] || QUESTIONS.spicy;
     const unusedQuestions = pool.filter(q => !room.playedQuestions.includes(q));
     
@@ -623,13 +622,13 @@ function broadcastStartRound() {
     const raw      = unusedQuestions[Math.floor(Math.random() * unusedQuestions.length)];
     const prompt   = raw.replace(/\[Subject\]/g, subject);
 
-    // ── NEW: increment round count ──
+    // Increment round count
     room.roundCount++;
 
-    // ── NEW: set activeWriters — everyone except subject ──
+    // Set activeWriters — everyone except subject
     room.activeWriters = room.players.filter(p => p !== subject && !p.startsWith('bot_late'));
 
-    // ── NEW: make sure all players have a score entry ──
+    // Make sure all players have a score entry
     room.players.forEach(p => {
         if (!(p in room.scores)) room.scores[p] = 0;
     });
