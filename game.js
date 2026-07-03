@@ -60,11 +60,14 @@ const Vibrate = {
 // ── QUESTION POOLS (Loaded dynamically) ─────────────────────────────────────────
 let QUESTIONS = {};
 
-fetch('questions.json')
-    .then(response => response.json())
+// Change 'questions.json' to './questions.json'
+fetch('./questions.json')
+    .then(response => {
+        if (!response.ok) throw new Error("Network response was not ok");
+        return response.json();
+    })
     .then(data => {
         QUESTIONS = data;
-        // Dynamically build misc using ALL available categories so it lasts for unlimited games
         QUESTIONS.misc = [];
         for (const cat in QUESTIONS) {
             if (cat !== 'misc' && Array.isArray(QUESTIONS[cat])) {
