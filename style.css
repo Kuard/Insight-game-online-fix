@@ -21,7 +21,15 @@
 }
 
 /* GLOBAL RESET */
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Outfit', sans-serif; user-select: none; }
+* { 
+    box-sizing: border-box; 
+    margin: 0; 
+    padding: 0; 
+    font-family: 'Outfit', sans-serif; 
+    user-select: none; 
+    -webkit-tap-highlight-color: transparent; /* Kills the blue mobile flash */
+    outline: none; /* Kills desktop focus rings */
+}
 html, body {
     background-color: var(--bg-pure);
     background-image:
@@ -34,10 +42,12 @@ html, body {
     width: 100%; min-height: 100vh;
 }
 
+/* Shrink the main container padding */
 .app-container {
     width: 100%; max-width: 420px; margin: 0 auto;
     display: flex; flex-direction: column;
-    padding: 24px 20px; height: 100vh; overflow-y: auto; overflow-x: hidden;
+    padding: 12px 16px; /* Reduced from 24px 20px */
+    height: 100vh; overflow-y: auto; overflow-x: hidden;
 }
 
 .screen { display: none; flex-direction: column; width: 100%; height: 100%; }
@@ -80,9 +90,17 @@ html, body {
 
 .room-section { text-align: center; margin-bottom: 16px; }
 .brand-subtitle { color: var(--text-secondary); font-size: 13px; font-weight: 500; text-align: center; }
+
+/* Shrink the massive room code text */
 .room-code-display {
-    font-family: 'Permanent Marker', cursive; font-size: 80px; line-height: 1.1; color: var(--neon-pink);
-    text-shadow: 0 0 20px rgba(255, 42, 109, 0.6); transform: rotate(-3deg); margin: 8px 0; text-align: center;
+    font-family: 'Permanent Marker', cursive; 
+    font-size: 52px; /* Reduced from 80px */
+    line-height: 1.1; 
+    color: var(--neon-pink);
+    text-shadow: 0 0 20px rgba(255, 42, 109, 0.6); 
+    transform: rotate(-3deg); 
+    margin: 4px 0; /* Reduced margin */
+    text-align: center;
 }
 .btn-outline {
     background: transparent; border: 1px solid rgba(255,255,255,0.15); color: var(--text-secondary);
@@ -90,8 +108,11 @@ html, body {
     display: inline-flex; align-items: center; gap: 6px; margin: 0 auto 16px auto;
 }
 
+/* Tighten up the lobby status text margin */
 .lobby-status {
-    text-align: center; font-size: 13px; margin-bottom: 24px; font-weight: 600; color: var(--neon-pink);
+    text-align: center; font-size: 13px; 
+    margin-bottom: 12px; /* Reduced from 24px */
+    font-weight: 600; color: var(--neon-pink);
 }
 .lobby-status.ready { color: var(--neon-green); text-shadow: 0 0 10px rgba(1, 255, 195, 0.4); }
 
@@ -110,9 +131,12 @@ html, body {
 
 /* DECKS & ROUNDS */
 .deck-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+
+/* Compress the spacing on the deck buttons */
 .deck-pill {
     background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.4));
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px 4px 12px;
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; 
+    padding: 8px 4px; /* Greatly reduced padding */
     display: flex; flex-direction: column; align-items: center; text-align: center;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); position: relative; cursor: pointer;
 }
@@ -122,8 +146,11 @@ html, body {
     background: var(--neon-pink); color: #fff; border-radius: 50%; font-size: 12px;
     display: flex; align-items: center; justify-content: center; font-weight: 800;
 }
+/* Make the deck icons slightly smaller */
 .deck-icon {
-    width: 36px; height: 36px; margin-bottom: 8px; display: inline-block;
+    width: 24px; height: 24px; /* Reduced from 36px */
+    margin-bottom: 4px; /* Reduced margin */
+    display: inline-block;
     -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center;
 }
 .icon-mask { background: linear-gradient(180deg, #6366f1, #3730a3); -webkit-mask-image: var(--icon-mask); mask-image: var(--icon-mask); }
@@ -144,10 +171,14 @@ html, body {
 .round-sub { font-size: 10px; font-weight: 500; color: var(--text-dark); }
 .round-pill.active .round-val, .round-pill.active .round-sub { color: var(--neon-pink); }
 
+/* Compress the 'Add Bots' button */
 .btn-bot-add {
     background: rgba(255,255,255,0.02); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--text-secondary);
-    padding: 14px 16px; border-radius: 14px; font-size: 13px; font-weight: 500; width: 100%;
-    display: flex; align-items: center; justify-content: center; margin-bottom: 24px; cursor: pointer; gap: 8px;
+    padding: 10px 16px; /* Reduced vertical padding */
+    border-radius: 14px; font-size: 13px; font-weight: 500; width: 100%;
+    display: flex; align-items: center; justify-content: center; 
+    margin-bottom: 12px; /* Reduced from 24px */
+    cursor: pointer; gap: 8px;
 }
 
 /* GAME UI */
