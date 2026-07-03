@@ -79,8 +79,8 @@ html, body {
 }
 .btn-secondary:active { background: rgba(255,255,255,0.05); }
 
-/* HEADER & LOBBY STYLES */
-.lobby-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+/* Tighten up the very top header */
+.lobby-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; } /* Reduced from 12px */
 .brand-title { color: var(--text-primary); font-size: 16px; font-weight: 800; letter-spacing: 4px; text-transform: uppercase; text-align: center; width: 100%; }
 .circle-btn { 
     width: 40px; height: 40px; border-radius: 50%;
@@ -88,8 +88,9 @@ html, body {
     color: var(--text-secondary); display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
 
-.room-section { text-align: center; margin-bottom: 16px; }
-.brand-subtitle { color: var(--text-secondary); font-size: 13px; font-weight: 500; text-align: center; }
+/* Crush the space around the room code and copy button */
+.room-section { text-align: center; margin-bottom: 6px; } /* Reduced from 16px */
+.btn-outline { margin: 0 auto 6px auto; } /* Reduced from 16px */
 
 /* Shrink the massive room code text */
 .room-code-display {
@@ -108,30 +109,30 @@ html, body {
     display: inline-flex; align-items: center; gap: 6px; margin: 0 auto 16px auto;
 }
 
-/* Tighten up the lobby status text margin */
+/* Bring the player count text closer */
 .lobby-status {
     text-align: center; font-size: 13px; 
-    margin-bottom: 12px; /* Reduced from 24px */
+    margin-bottom: 4px; /* Reduced from 12px */
     font-weight: 600; color: var(--neon-pink);
 }
 .lobby-status.ready { color: var(--neon-green); text-shadow: 0 0 10px rgba(1, 255, 195, 0.4); }
 
+/* Shrink the space above and below the "Choose Your Deck" / "Game Length" titles */
 .section-title {
     font-size: 11px; font-weight: 700; color: var(--text-secondary);
-    letter-spacing: 2px; text-transform: uppercase; text-align: center; margin: 16px 0 12px 0;
+    letter-spacing: 2px; text-transform: uppercase; text-align: center; 
+    margin: 8px 0 6px 0; /* Massively reduced from 16px 0 12px 0 */
 }
 
-/* PLAYER PILLS */
-#lobbyPlayerGrid { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 24px; }
-.player-pill {
+/* Tighten the gaps between the player names */
+#lobbyPlayerGrid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 12px; } /* Margin reduced from 24px */.player-pill {
     background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px;
     padding: 8px 16px; font-size: 13px; font-weight: 600; color: #fff; display: flex; align-items: center; gap: 8px;
 }
 .kick-btn { color: var(--neon-pink); cursor: pointer; font-size: 16px; font-weight: bold; line-height: 1; }
 
-/* DECKS & ROUNDS */
-.deck-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
-
+/* Compress the grids themselves at the bottom */
+.deck-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; } /* Gap and margin reduced */
 /* Compress the spacing on the deck buttons */
 .deck-pill {
     background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.4));
@@ -164,8 +165,7 @@ html, body {
 .deck-title { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
 .deck-subtitle { font-size: 10px; color: var(--text-secondary); }
 
-.round-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }
-.round-pill { background: rgba(255,255,255,0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 12px 4px; text-align: center; cursor: pointer; }
+.round-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; } /* Gap and margin reduced */.round-pill { background: rgba(255,255,255,0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 12px 4px; text-align: center; cursor: pointer; }
 .round-pill.active { border-color: var(--neon-pink); background: rgba(255, 42, 109, 0.05); box-shadow: 0 0 15px rgba(255, 42, 109, 0.2); }
 .round-val { font-size: 18px; font-weight: 700; color: var(--text-secondary); line-height: 1; margin-bottom: 4px; display: flex; justify-content: center; align-items: center; min-height: 20px; }
 .round-sub { font-size: 10px; font-weight: 500; color: var(--text-dark); }
