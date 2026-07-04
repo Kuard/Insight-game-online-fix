@@ -64,7 +64,7 @@
         <div id="hostOnlyControls" style="display:none;">
             <div class="section-title">Choose Your Deck</div>
             <div class="deck-grid">
-                <div class="deck-pill" onclick="setCategory('classic', this)">
+                <div class="deck-pill active" id="deckPillClassic" onclick="setCategory('classic', this)">
                     <div class="deck-icon icon-mask"></div>
                     <div class="deck-title">Classic</div><div class="deck-subtitle">Timeless</div>
                 </div>
@@ -88,7 +88,7 @@
                     <div class="deck-icon icon-trash"></div>
                     <div class="deck-title">Trash</div><div class="deck-subtitle">Savage</div>
                 </div>
-                <div class="deck-pill active" onclick="confirmNSFW(this)">
+                <div class="deck-pill" onclick="confirmNSFW(this)">
                     <div class="deck-icon icon-18"></div>
                     <div class="deck-title">NSFW</div><div class="deck-subtitle">Adults only</div>
                 </div>
@@ -100,10 +100,10 @@
 
             <div class="section-title">Game Length</div>
             <div class="round-grid">
-                <div class="round-pill" onclick="setMaxRounds(10, this)"><div class="round-val">10</div><div class="round-sub">Rounds</div></div>
+                <div class="round-pill active" id="roundPill10" onclick="setMaxRounds(10, this)"><div class="round-val">10</div><div class="round-sub">Rounds</div></div>
                 <div class="round-pill" onclick="setMaxRounds(30, this)"><div class="round-val">30</div><div class="round-sub">Rounds</div></div>
                 <div class="round-pill" onclick="setMaxRounds(45, this)"><div class="round-val">45</div><div class="round-sub">Rounds</div></div>
-                <div class="round-pill active" onclick="setMaxRounds('unlimited', this)">
+                <div class="round-pill" onclick="setMaxRounds('unlimited', this)">
                     <div class="round-val">
                         <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="24" height="24"><path d="M256,256s-48-96-126-96c-54.12,0-98,43-98,96s43.88,96,98,96c30,0,56.45-13.18,78-32" style="fill:none;stroke:currentColor;stroke-linecap:round;stroke-miterlimit:10;stroke-width:48px"></path><path d="M256,256s48,96,126,96c54.12,0,98-43,98-96s-43.88-96-98-96c-29.37,0-56.66,13.75-78,32" style="fill:none;stroke:currentColor;stroke-linecap:round;stroke-miterlimit:10;stroke-width:48px"></path></svg>
                     </div>
