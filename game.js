@@ -83,7 +83,7 @@ fetch('questions.json')
 // ── STATE ──────────────────────────────────────────────────────────────────────
 let net  = { peer: null, conn: null, connections: [], role: 'client', myName: '' };
 let room = {
-    id:'', players:[], currentSubject:'', currentPrompt:'', currentRawQuestion:'', currentCategory:'spicy',
+    id:'', players:[], currentSubject:'', currentPrompt:'', currentRawQuestion:'', currentCategory:'classic',
     cards:[], timeLimit:45, playedQuestions:[],
     // ── NEW STATE ──
     scores: {},           // { playerName: number }
@@ -98,6 +98,28 @@ let roundTimerInterval = null;
 let timeRemaining = 0;
 let screenTransitionChangeTime = 0; 
 
+// ── MOBILE ADDRESS BAR HIDING ────────────────────────────────────────────────
+// Nudges the viewport on initial load so mobile browsers collapse their top link bar.
+window.addEventListener('load', () => {
+    window.scrollTo(0, 1);
+    setTimeout(() => window.scrollTo(0, 1), 100);
+    setTimeout(() => window.scrollTo(0, 1), 500);
+});
+
+// ── LOBBY DEFAULTS SYNC ───────────────────────────────────────────────────────
+// Ensures the deck/round pill "active" highlight in the DOM always matches
+// room.currentCategory / room.maxRounds, even if a previous session left
+// different pills highlighted (the DOM doesn't reset itself between rooms).
+function resetLobbyDefaultsUI() {
+    document.querySelectorAll('.deck-pill').forEach(p => p.classList.remove('active'));
+    const classicPill = $('deckPillClassic');
+    if (classicPill) classicPill.classList.add('active');
+
+    document.querySelectorAll('.round-pill').forEach(p => p.classList.remove('active'));
+    const tenRoundsPill = $('roundPill10');
+    if (tenRoundsPill) tenRoundsPill.classList.add('active');
+}
+
 // ── HELPERS ────────────────────────────────────────────────────────────────────
 function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -107,6 +129,11 @@ function showScreen(id) {
     if (id === 'scrRevealStage') {
         screenTransitionChangeTime = Date.now();
     }
+
+    // Force mobile browsers (iOS Safari / Android Chrome) to collapse their address bar
+    // on every screen transition, since layout height changes can bring it back.
+    window.scrollTo(0, 1);
+    setTimeout(() => window.scrollTo(0, 1), 50);
 }
 
 function getCleanName() {
@@ -183,7 +210,7 @@ function leaveRoom() {
     }
     net = { peer: null, conn: null, connections: [], role: 'client', myName: '' };
     room = {
-        id:'', players:[], currentSubject:'', currentPrompt:'', currentRawQuestion:'', currentCategory:'spicy',
+        id:'', players:[], currentSubject:'', currentPrompt:'', currentRawQuestion:'', currentCategory:'classic',
         cards:[], timeLimit:45, playedQuestions:[],
         scores: {}, subjectCounts: {}, lateJoiners: [], maxRounds: 10, roundCount: 0, roundActive: false, activeWriters: []
     };
@@ -256,6 +283,10 @@ function createLiveRoom() {
     net.role = 'host';
     room.players = [net.myName];
 
+    // Force default lobby configuration for every newly hosted room
+    room.currentCategory = 'classic';
+    room.maxRounds = 10;
+
     const shortId = Math.random().toString(36).substring(2,6).toUpperCase();
     net.peer = new Peer(shortId, PEER_CONFIG);
 
@@ -266,6 +297,7 @@ function createLiveRoom() {
         $('hostStartBtn').style.display = 'block';
         $('clientWaitNotice').style.display = 'none';
         $('botAddBtn').style.display = 'flex';
+        resetLobbyDefaultsUI();
         updateLobbyUI();
         showScreen('scrLobby');
     });
