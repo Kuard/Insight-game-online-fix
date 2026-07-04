@@ -87,7 +87,7 @@ let room = {
     cards:[], timeLimit:45, playedQuestions:[],
     // ── NEW STATE ──
     scores: {},           // { playerName: number }
-    subjectcounts: {},    // <-- PASTE THIS LINE HERE
+    subjectCounts: {},    // { playerName: number of times they've been the subject }
     lateJoiners: [],      // names of players who joined mid-game (for badge display)
     maxRounds: 10,        // 10 | 30 | 45 | 'unlimited'
     roundCount: 0,        // rounds completed so far
@@ -191,6 +191,7 @@ function leaveRoom() {
     $('hostOnlyControls').style.display = 'none';
     $('hostStartBtn').style.display = 'none';
     $('clientWaitNotice').style.display = 'none';
+    $('botAddBtn').style.display = 'none';
     $('writerInput').value = "";
     
     showScreen('scrMenu');
@@ -264,6 +265,7 @@ function createLiveRoom() {
         $('hostOnlyControls').style.display = 'block';
         $('hostStartBtn').style.display = 'block';
         $('clientWaitNotice').style.display = 'none';
+        $('botAddBtn').style.display = 'flex';
         updateLobbyUI();
         showScreen('scrLobby');
     });
@@ -305,6 +307,7 @@ function joinLiveRoom() {
             $('hostOnlyControls').style.display = 'none';
             $('hostStartBtn').style.display = 'none';
             $('clientWaitNotice').style.display = 'block';
+            $('botAddBtn').style.display = 'none';
             showScreen('scrLobby');
         });
         net.conn.on('data', (data) => handleData(data, null));
@@ -575,6 +578,9 @@ function kickPlayer(name) {
 function broadcastStartRound() {
     if (room.players.length < 3) { alert("Need at least 3 players!"); return; }
 
+    // --- BULLETPROOF: guarantee subjectCounts always exists before it's read/written ---
+    room.subjectCounts = room.subjectCounts || {};
+
     // --- SAFETY CHECK (Renamed variable to prevent syntax crash) ---
     const initialPool = QUESTIONS[room.currentCategory] || QUESTIONS.spicy;
     if (!initialPool || initialPool.length === 0) {
@@ -606,17 +612,18 @@ function broadcastStartRound() {
     // Find the minimum number of times anyone in the eligible pool has been the subject
     let minCount = Infinity;
     eligible.forEach(p => {
-        const count = room.subjectCounts[p] || 0;
+        const count = (room.subjectCounts || {})[p] || 0;
         if (count < minCount) minCount = count;
     });
 
     // Filter eligible players to only those tied for the fewest turns as subject
-    const fairestPool = eligible.filter(p => (room.subjectCounts[p] || 0) === minCount);
+    const fairestPool = eligible.filter(p => ((room.subjectCounts || {})[p] || 0) === minCount);
 
     // Pick randomly from the fairest pool
     const subject  = fairestPool[Math.floor(Math.random() * fairestPool.length)];
     
     // Increment their subject tracker
+    room.subjectCounts = room.subjectCounts || {};
     room.subjectCounts[subject] = (room.subjectCounts[subject] || 0) + 1;
 
     const raw      = unusedQuestions[Math.floor(Math.random() * unusedQuestions.length)];
