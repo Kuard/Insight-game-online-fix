@@ -54,14 +54,12 @@ html, body {
     top: 0; left: 0; right: 0; bottom: 0;
     margin: 0 auto;
     display: flex; flex-direction: column;
-    /* Updated padding to dynamically account for iOS Safe Areas */
     padding-top: calc(12px + env(safe-area-inset-top));
     padding-bottom: calc(12px + env(safe-area-inset-bottom));
     padding-left: calc(16px + env(safe-area-inset-left));
     padding-right: calc(16px + env(safe-area-inset-right));
     height: 100%; height: 100vh;
     overflow: hidden !important;
-    /* Deepens the neon saturation based on your icon image */
     filter: saturate(1.2) contrast(1.1);
 }
 
@@ -94,7 +92,7 @@ html, body {
 }
 .btn-secondary:active { background: rgba(255,255,255,0.05); }
 
-/* Tightened Headers */
+/* Headers */
 .lobby-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .brand-title { color: var(--text-primary); font-size: 16px; font-weight: 800; letter-spacing: 4px; text-transform: uppercase; text-align: center; width: 100%; }
 .circle-btn { 
@@ -181,7 +179,6 @@ html, body {
 .round-sub { font-size: 9px; font-weight: 500; color: var(--text-dark); }
 .round-pill.active .round-val, .round-pill.active .round-sub { color: var(--neon-pink); }
 
-/* Compact circular header button (mirrors .circle-btn on the opposite side of the lobby header) */
 .btn-bot-add {
     padding: 0;
     margin: 0;
@@ -206,26 +203,18 @@ html, body {
 .bubble { width: 32px; height: 32px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.1), rgba(0,0,0,0.4)); border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: 0.2s; box-shadow: inset 2px 2px 5px rgba(255,255,255,0.1), inset -2px -2px 5px rgba(0,0,0,0.5); }
 .bubble.popped { transform: scale(0.9); background: rgba(0,0,0,0.6); box-shadow: inset 4px 4px 8px rgba(0,0,0,0.8); border-color: transparent; }
 
-/* REVEAL STAGE — tight vertical layout so Next Round never sinks below the fold */
+/* REVEAL STAGE & CARD WRAPPER */
 #scrRevealStage { padding-bottom: 0; }
 #revealInstructions { margin-bottom: 10px; }
-
-/* UPDATED CARDS WRAPPER */
 #cardsWrapper {
-    display: flex; flex-direction: column; gap: 16px;
-    width: 100%;
-    margin: 10px 0 28px 0;
-    max-height: none !important;
+    display: flex; flex-direction: column; gap: 8px;
+    margin: 10px 0 40px 0;
     overflow: visible !important;
     padding: 12px 4px;
 }
-
-/* UPDATED NEXT ROUND BUTTON */
 #nextRoundBtn {
-    margin: 0 auto 32px auto !important;
+    margin: 0 auto;
     display: block;
-    width: 85%;
-    max-width: 320px;
     flex-shrink: 0;
 }
 
@@ -233,44 +222,29 @@ html, body {
 .reveal-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; font-size: 15px; font-weight: 500; color: #fff; text-align: center; transition: 0.3s; cursor: pointer; }
 .reveal-card.hidden-state { border-style: dashed; color: var(--text-secondary); display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; letter-spacing: 1px; }
 
-/* UPDATED GLOW SELECTOR */
 .reveal-card.selected { 
     border-color: var(--neon-green) !important; 
     background: rgba(0, 255, 166, 0.08); 
     box-shadow: 0 0 20px rgba(0, 255, 166, 0.6) !important; 
     transform: scale(1.02); 
-    transition: box-shadow 0.3s ease, border-color 0.3s ease;
 }
 
-/* SLEEK, PROFESSIONAL AUTHOR BADGE */
 .author-badge {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
-    margin-top: 10px;
-    padding: 4px 10px;
     background: rgba(0, 255, 166, 0.1);
     border: 1px solid rgba(0, 255, 166, 0.3);
-    border-radius: 6px;
     color: var(--neon-green);
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 1px;
     text-transform: uppercase;
-    animation: fadeInAuthor 0.3s ease forwards;
+    padding: 4px 10px;
+    border-radius: 12px;
+    margin-top: 12px;
 }
-
-.author-badge svg {
-    width: 12px;
-    height: 12px;
-    fill: currentColor;
-}
-
-@keyframes fadeInAuthor {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
 
 /* SCOREBOARD */
 .scoreboard { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 16px; margin-top: 10px; }
