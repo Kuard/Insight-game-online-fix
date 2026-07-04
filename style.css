@@ -200,6 +200,21 @@ html, body {
 .bubble { width: 32px; height: 32px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.1), rgba(0,0,0,0.4)); border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: 0.2s; box-shadow: inset 2px 2px 5px rgba(255,255,255,0.1), inset -2px -2px 5px rgba(0,0,0,0.5); }
 .bubble.popped { transform: scale(0.9); background: rgba(0,0,0,0.6); box-shadow: inset 4px 4px 8px rgba(0,0,0,0.8); border-color: transparent; }
 
+/* REVEAL STAGE — tight vertical layout so Next Round never sinks below the fold */
+#scrRevealStage { padding-bottom: 0; }
+#revealInstructions { margin-bottom: 10px; }
+#cardsWrapper {
+    display: flex; flex-direction: column; gap: 8px;
+    margin: 10px 0 8px 0;
+    max-height: 46vh;
+    overflow-y: auto;
+}
+#nextRoundBtn {
+    margin-top: 6px !important;
+    margin-bottom: 0;
+    flex-shrink: 0;
+}
+
 /* REVEAL CARDS */
 .reveal-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; font-size: 15px; font-weight: 500; color: #fff; text-align: center; transition: 0.3s; cursor: pointer; }
 .reveal-card.hidden-state { border-style: dashed; color: var(--text-secondary); display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; letter-spacing: 1px; }
