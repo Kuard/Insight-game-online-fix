@@ -60,7 +60,7 @@ const Vibrate = {
 // ── QUESTION POOLS (Loaded dynamically) ─────────────────────────────────────────
 let QUESTIONS = {};
 
-fetch('./questions.json')
+fetch('questions.json')
     .then(response => {
         if (!response.ok) throw new Error("Network response was not ok");
         return response.json();
@@ -82,11 +82,10 @@ fetch('./questions.json')
 
 // ── STATE ──────────────────────────────────────────────────────────────────────
 let net  = { peer: null, conn: null, connections: [], role: 'client', myName: '' };
-let subjectQueue = []; // Holds the pre-computed fair rotation for the game
 let room = {
     id:'', players:[], currentSubject:'', currentPrompt:'', currentRawQuestion:'', currentCategory:'classic',
     cards:[], timeLimit:45, playedQuestions:[],
-    scores: {},           
+    scores: {},          
     subjectCounts: {},    
     lateJoiners: [],      
     maxRounds: 10,        
@@ -97,49 +96,6 @@ let room = {
 let roundTimerInterval = null;
 let timeRemaining = 0;
 let screenTransitionChangeTime = 0; 
-
-// ── GAME LOGIC / FAIR QUEUE ENGINE ──────────────────────────────────────────────
-function generateFairSubjectQueue(playersArray, maxRoundsCount) {
-    if (!playersArray || playersArray.length === 0) return [];
-    
-    // Default to 100 rounds for 'unlimited' to prevent infinite loops while still generating a large buffer
-    const limit = maxRoundsCount === 'unlimited' ? 100 : maxRoundsCount;
-    const queue = [];
-    const counts = {};
-    playersArray.forEach(p => counts[p] = 0);
-    
-    let lastSubject = null;
-    
-    for (let i = 0; i < limit; i++) {
-        let minCount = Infinity;
-        
-        // Find the lowest count among all players
-        for (const p of playersArray) {
-            if (counts[p] < minCount) minCount = counts[p];
-        }
-        
-        // Pool of valid candidates who have the lowest count
-        let candidates = playersArray.filter(p => counts[p] === minCount);
-        
-        // Ensure no back-to-back subjects if there are enough players
-        let validCandidates = candidates.filter(p => p !== lastSubject);
-        
-        // If filtering leaves us empty (e.g., small pool constrained by minimums), expand scope temporarily
-        if (validCandidates.length === 0) {
-            validCandidates = playersArray.filter(p => p !== lastSubject);
-            if (validCandidates.length === 0) validCandidates = candidates; // Failsafe for 1-player test runs
-        }
-        
-        // Select randomly from the valid pool
-        const selected = validCandidates[Math.floor(Math.random() * validCandidates.length)];
-        counts[selected]++;
-        queue.push(selected);
-        lastSubject = selected;
-    }
-    
-    return queue;
-}
-
 
 // ── MOBILE ADDRESS BAR HIDING ────────────────────────────────────────────────
 window.addEventListener('load', () => {
@@ -168,6 +124,7 @@ function showScreen(id) {
     if (id === 'scrRevealStage') {
         screenTransitionChangeTime = Date.now();
     }
+
     window.scrollTo(0, 1);
     setTimeout(() => window.scrollTo(0, 1), 50);
 }
@@ -219,6 +176,7 @@ function setMaxRounds(n, el) {
     if (net.role === 'host') broadcastToAll({ type: 'SYNC_MAX_ROUNDS', maxRounds: n });
 }
 
+/* ── LEAVE CONFIRMATION SYSTEM ── */
 function triggerLeaveConfirmation() {
     Sound.play(200, 'sine', 0.08);
     Vibrate.click();
@@ -243,7 +201,6 @@ function leaveRoom() {
         try { net.peer.destroy(); } catch(e) {}
     }
     net = { peer: null, conn: null, connections: [], role: 'client', myName: '' };
-    subjectQueue = [];
     room = {
         id:'', players:[], currentSubject:'', currentPrompt:'', currentRawQuestion:'', currentCategory:'classic',
         cards:[], timeLimit:45, playedQuestions:[],
@@ -271,6 +228,7 @@ function addTestBots() {
     Vibrate.tap();
 }
 
+// ── WORD COUNTER ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     const wi = $('writerInput');
     const cc = $('charCount');
@@ -289,6 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// ── TOAST NOTIFICATION ────────────────────────────────────────────────────────
 function showToast(msg) {
     let existing = document.getElementById('gameToast');
     if (existing) existing.remove();
@@ -385,6 +344,7 @@ function handleData(data, connection) {
             return;
         }
         room.players.push(data.name);
+        
         if (!(data.name in room.scores)) room.scores[data.name] = 0;
 
         if (connection) {
@@ -401,7 +361,7 @@ function handleData(data, connection) {
                     subject: room.currentSubject,
                     prompt: room.currentPrompt,
                     category: room.currentCategory,
-                    cards: room.cards,
+                    cards: room.cards,           
                     scores: room.scores,
                     lateJoiners: room.lateJoiners,
                     maxRounds: room.maxRounds,
@@ -491,7 +451,16 @@ function handleData(data, connection) {
     else if (data.type === 'FLIP_CARD') {
         room.cards[data.index].revealed = true;
         updateCardDOM(data.index);
-        if (net.role === 'host' && connection) rebroadcast(data, connection);
+        if (net.role === 'host' && connection) {
+            try { connection.send(data); } catch(e){} // Simple relay fix
+        }
+    }
+    else if (data.type === 'UNFLIP_CARD') {
+        room.cards[data.index].revealed = false;
+        updateCardDOM(data.index);
+        if (net.role === 'host' && connection) {
+            try { connection.send(data); } catch(e){} 
+        }
     }
     else if (data.type === 'SELECT_CARD') {
         room.cards.forEach((c,i) => c.selected = (i === data.index));
@@ -499,9 +468,15 @@ function handleData(data, connection) {
 
         if (net.role === 'host') {
             const winner = room.cards[data.index].creator;
-            room.scores[winner] = (room.scores[winner] || 0) + 1;
+            if (!winner.startsWith('bot')) {   
+                room.scores[winner] = (room.scores[winner] || 0) + 1;
+            } else {
+                room.scores[winner] = (room.scores[winner] || 0) + 1;
+            }
             broadcastToAll({ type: 'SYNC_SCORES', scores: room.scores });
-            if (connection) rebroadcast(data, connection);
+            if (connection) {
+                try { connection.send(data); } catch(e){} 
+            }
         }
     }
     else if (data.type === 'SYNC_SCORES') {
@@ -620,15 +595,12 @@ function kickPlayer(name) {
 function broadcastStartRound() {
     if (room.players.length < 3) { alert("Need at least 3 players!"); return; }
 
+    room.subjectCounts = room.subjectCounts || {};
+
     const initialPool = QUESTIONS[room.currentCategory] || QUESTIONS.spicy;
     if (!initialPool || initialPool.length === 0) {
         alert("Questions are still loading from the server! Give it a second or refresh the page.");
         return;
-    }
-
-    // Generate fair rotation map upon match initialization
-    if (room.roundCount === 0) {
-        subjectQueue = generateFairSubjectQueue(room.players, room.maxRounds);
     }
 
     room.lateJoiners = [];
@@ -638,15 +610,25 @@ function broadcastStartRound() {
         return;
     }
     
-    const unusedQuestions = initialPool.filter(q => !room.playedQuestions.includes(q));
+    const pool = QUESTIONS[room.currentCategory] || QUESTIONS.spicy;
+    const unusedQuestions = pool.filter(q => !room.playedQuestions.includes(q));
     
     if (unusedQuestions.length === 0) {
         broadcastToAll({ type: 'GAME_OVER', scores: room.scores, lateJoiners: room.lateJoiners });
         return;
     }
     
-    // Assign subject directly from the pre-generated queue to guarantee strict fairness
-    const subject = subjectQueue[room.roundCount] || subjectQueue[0];
+    const eligible = room.players.filter(p => p !== room.currentSubject);
+    
+    let minCount = Infinity;
+    eligible.forEach(p => {
+        const count = (room.subjectCounts || {})[p] || 0;
+        if (count < minCount) minCount = count;
+    });
+
+    const fairestPool = eligible.filter(p => ((room.subjectCounts || {})[p] || 0) === minCount);
+    const subject  = fairestPool[Math.floor(Math.random() * fairestPool.length)];
+    
     room.subjectCounts = room.subjectCounts || {};
     room.subjectCounts[subject] = (room.subjectCounts[subject] || 0) + 1;
 
@@ -814,46 +796,88 @@ function renderRevealStage() {
     }
 
     $('revealInstructions').innerText = isMeSubject
-        ? "Tap to flip, then choose your favourite!"
+        ? "Tap the deck to reveal. Pick a favourite to win!"
         : `${room.currentSubject} is judging...`;
 
     const container = $('cardsWrapper');
     container.innerHTML = "";
+    container.classList.add('fanned-hand');
 
     room.cards.forEach((c, idx) => {
         const el = document.createElement('div');
         el.id = `rcard-${idx}`;
+        el.className = 'reveal-card-scene';
+        
+        el.style.setProperty('--i', idx);
+        el.style.setProperty('--total', room.cards.length);
+        
+        el.innerHTML = `
+            <div class="reveal-card-inner">
+                <div class="reveal-card-face reveal-card-front"></div>
+                <div class="reveal-card-face reveal-card-back">
+                    <div class="card-text"></div>
+                    <div class="author-reveal" style="display:none;"></div>
+                    <button class="fav-btn" style="display:none;">WINNER</button>
+                </div>
+            </div>
+        `;
         container.appendChild(el);
         updateCardDOM(idx);
 
-        el.onclick = () => {
+        el.onclick = (e) => {
             if (!isMeSubject) return;
-            
             if (Date.now() - screenTransitionChangeTime < 1500) return; 
             
+            // 1. Did they click the WINNER favourite button?
+            if (e.target.classList.contains('fav-btn')) {
+                if (!room.cards.some(card => card.selected) && room.cards[idx].revealed) {
+                    if (Date.now() - (room.cards[idx].revealedAt || 0) < 1200) return; 
+                    Sound.play(280, 'sine', 0.15);
+                    Vibrate.buzz([20, 30, 40]);
+                    const payload = { type: 'SELECT_CARD', index: idx };
+                    if (net.role === 'host') broadcastToAll(payload);
+                    else {
+                        room.cards.forEach((c,i) => c.selected = (i === idx));
+                        room.cards.forEach((_,i) => updateCardDOM(i));
+                        net.conn.send(payload);
+                    }
+                }
+                return; 
+            }
+
+            // 2. Sequential Deck Logic
             if (!room.cards[idx].revealed) {
-                Sound.play(300, 'triangle', 0.1);
-                Vibrate.tap();
-                room.cards[idx].revealedAt = Date.now();
+                // If they tap ANY hidden card, force flip the TOP hidden card in the deck sequence
+                const topHiddenIdx = room.cards.findIndex(c => !c.revealed);
                 
-                const payload = { type: 'FLIP_CARD', index: idx };
-                if (net.role === 'host') broadcastToAll(payload);
-                else {
-                    room.cards[idx].revealed = true;
-                    updateCardDOM(idx);
-                    net.conn.send(payload);
+                if (topHiddenIdx !== -1) {
+                    Sound.play(300, 'triangle', 0.1);
+                    Vibrate.tap();
+                    room.cards[topHiddenIdx].revealedAt = Date.now();
+                    
+                    const payload = { type: 'FLIP_CARD', index: topHiddenIdx };
+                    if (net.role === 'host') broadcastToAll(payload);
+                    else {
+                        room.cards[topHiddenIdx].revealed = true;
+                        updateCardDOM(topHiddenIdx);
+                        net.conn.send(payload);
+                    }
                 }
             } else if (!room.cards.some(card => card.selected)) {
-                if (Date.now() - (room.cards[idx].revealedAt || 0) < 1200) return; 
-
-                Sound.play(280, 'sine', 0.15);
-                Vibrate.buzz([20, 30, 40]);
-                const payload = { type: 'SELECT_CARD', index: idx };
-                if (net.role === 'host') broadcastToAll(payload);
-                else {
-                    room.cards.forEach((c,i) => c.selected = (i === idx));
-                    room.cards.forEach((_,i) => updateCardDOM(i));
-                    net.conn.send(payload);
+                // If they click ANY revealed card, unflip the TOP revealed card back to the hidden pile
+                const topRevealedIdx = room.cards.map(c => c.revealed).lastIndexOf(true);
+                
+                if (topRevealedIdx !== -1) {
+                    Sound.play(150, 'sine', 0.05);
+                    Vibrate.click();
+                    
+                    const payload = { type: 'UNFLIP_CARD', index: topRevealedIdx };
+                    if (net.role === 'host') broadcastToAll(payload);
+                    else {
+                        room.cards[topRevealedIdx].revealed = false;
+                        updateCardDOM(topRevealedIdx);
+                        net.conn.send(payload);
+                    }
                 }
             }
         };
@@ -892,27 +916,31 @@ function updateCardDOM(idx) {
     const c = room.cards[idx];
     const isMeSubject = (net.myName === room.currentSubject);
 
-    // Dynamic, professional SVG badge implementation
-    const iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>`;
+    const textEl = el.querySelector('.card-text');
+    const authorEl = el.querySelector('.author-reveal');
+    const favBtn = el.querySelector('.fav-btn');
 
     if (c.selected) {
-        el.className = "reveal-card selected";
-        el.style.cssText = ""; 
-        el.innerHTML = `<div>${c.text}</div><div class="author-badge">${iconSvg} WRITTEN BY: ${c.creator}</div>`;
-    } else if (!c.revealed) {
+        el.classList.add('selected', 'is-flipped');
+        textEl.innerText = c.text;
+        authorEl.innerHTML = `👑 Written by: ${c.creator}`;
+        authorEl.style.display = 'block';
+        favBtn.style.display = 'none';
+    } else if (c.revealed) {
+        el.classList.add('is-flipped');
+        textEl.innerText = c.text;
+        
         if (isMeSubject) {
-            el.className = "reveal-card hidden-state";
-            el.style.cssText = "";
-            el.innerText = `HIDDEN CARD ${idx + 1}`;
+            favBtn.style.display = 'inline-block';
         } else {
-            el.className = "reveal-card hidden-state";
-            el.style.borderStyle = "solid";
-            el.innerHTML = `<div>${c.text}</div><div style="font-size: 11px; color: var(--title-pink); margin-top: 6px; font-weight: 700; letter-spacing: 0.5px;">🔒 HIDDEN FROM SUBJECT</div>`;
+            favBtn.style.display = 'none';
         }
+        authorEl.style.display = 'none';
     } else {
-        el.className = "reveal-card";
-        el.style.cssText = "";
-        el.innerText = c.text;
+        el.classList.remove('is-flipped');
+        if (!isMeSubject) {
+            textEl.innerHTML = `<div style="font-size: 11px; color: var(--neon-pink); font-weight: 700; letter-spacing: 0.5px;">🔒 HIDDEN</div>`;
+        }
     }
 }
 
@@ -1010,7 +1038,6 @@ function executeGameOverUI() {
     showScreen('scrRevealStage');
 }
 
-// ── FIDGET TOYS ────────────────────────────────────────────────────────────────
 function setupFidgets() {
     const clk = $('toyClicker');
     clk.innerText = "0";
