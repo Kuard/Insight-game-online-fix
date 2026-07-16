@@ -280,8 +280,27 @@ html, body {
 }
 .reveal-card-front { background: linear-gradient(135deg, var(--neon-purple), var(--neon-pink)); color: white; }
 .reveal-card-front::after { content: "INSIGHT"; font-size: 22px; font-weight: 900; letter-spacing: 2px; transform: rotate(-45deg); }
-.reveal-card-back { transform: rotateY(180deg); color: white; justify-content: space-between; font-size: 14px; }
-.reveal-card-scene.selected .reveal-card-back { border-color: var(--neon-green); background: rgba(0, 255, 166, 0.08); }
+.reveal-card-back {
+    transform: rotateY(180deg);
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    
+    /* FIXES THE OVERFLOW */
+    word-break: break-word; /* Forces long words to wrap */
+    overflow-y: auto;       /* Adds a tiny scroll if the text is too long */
+    padding: 15px;          /* Keeps text away from the edges */
+    text-align: center;
+    justify-content: center; /* Centers vertically */
+}
+/* Force the Winner card to be opaque and solid */
+.reveal-card-scene.selected .reveal-card-back {
+    background: #140f1e !important; 
+    border: 2px solid var(--neon-green) !important;
+    box-shadow: 0 0 40px rgba(0, 255, 166, 0.4);
+    opacity: 1 !important;
+    z-index: 1000 !important;
+}
 
 .author-reveal { margin-top: 10px; font-size: 10px; color: var(--neon-green); font-weight: 700; text-transform: uppercase; }
 .fav-btn { background: var(--neon-green); color: #000; border: none; border-radius: 20px; padding: 8px 14px; font-size: 11px; font-weight: 800; cursor: pointer; margin-top: 12px; }
@@ -308,3 +327,33 @@ html, body {
 .modal-title { font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 10px; }
 .modal-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.5; }
 .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* 1. Global Scrollbar Styling */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(20, 15, 30, 0.5);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--neon-pink);
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--neon-purple);
+    box-shadow: 0 0 8px var(--neon-purple);
+}
+
+/* 2. Global Clip: Target everything that scrolls */
+/* This ensures that any container with overflow: auto or overflow-y: auto 
+   automatically clips the scrollbar to its own border-radius */
+[style*="overflow-y: auto"], 
+[style*="overflow: auto"],
+.scrollable { 
+    clip-path: inset(0 round 12px); 
+}
